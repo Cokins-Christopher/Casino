@@ -1,37 +1,19 @@
 import axios from 'axios';
 import React from 'react';
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import HomePage from './components/HomePage';
+import SignupPage from './components/SignUp';
 
-class App extends React.Component {
-  state = { details: [] };
 
-  componentDidMount() {
-    let data;
-    axios.get('http://127.0.0.1:8000/')
-      .then(res => {
-        data = res.data;
-        this.setState({
-          details: data
-        });
-      })
-      .catch(err => {
-        console.error(err);
-      });
-  }
-
-  render() {
-    return (
-      <div>
-        <header>Data Generated from Django</header>
-        <hr />
-        {this.state.details.map((output, id) => (
-          <div key={id}>
-            <h2>{output.employee}</h2>
-            <h3>{output.department}</h3>
-          </div>
-        ))}
-      </div>
-    );
-  }
+function App() {
+  return (
+    <Router>
+      <Routes>
+        <Route path="/" element={<HomePage />} />
+        <Route path="/signup" element={<SignupPage />} />
+      </Routes>
+    </Router>
+  );
 }
 
 export default App;
