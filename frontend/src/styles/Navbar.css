@@ -1,0 +1,53 @@
+.navbar {
+    background: #4B0082;
+    color: #FFD700;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+  }
+  
+  .logo {
+    font-size: 24px;
+    font-weight: bold;
+  }
+  
+  .nav-links a {
+    color: #FFD700;
+    text-decoration: none;
+    margin: 0 15px;
+    font-size: 18px;
+  }
+  
+  .nav-links a:hover {
+    text-decoration: underline;
+  }
+  
+  .auth-buttons .login-btn,
+.auth-buttons .signup-btn {
+  width: 130px;  /* Ensure both buttons have the same width */
+  padding: 10px 20px;  /* Same padding */
+  font-size: 18px;  /* Same font size */
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  font-weight: bold;
+  text-align: center;
+  margin-left: 10px;
+}
+
+.auth-buttons .signup-btn {
+  background-color: #F5F5F5;
+  color: #4B0082;
+}
+
+.auth-buttons .login-btn {
+  background-color: #FFD700;
+  color: #4B0082;
+}
+
+.auth-buttons .login-btn:hover,
+.auth-buttons .signup-btn:hover {
+  opacity: 0.8;
+}

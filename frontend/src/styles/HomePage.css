@@ -1,0 +1,46 @@
+.home-container {
+    background: linear-gradient(to bottom, #2C003E, #4B0082);
+    color: #F5F5F5;
+    text-align: center;
+    padding: 50px;
+    min-height: 100vh;
+  }
+  
+  h1 {
+    font-size: 36px;
+    color: #FFD700;
+    margin-bottom: 20px;
+  }
+  
+  .user-list {
+    list-style: none;
+    padding: 0;
+  }
+  
+  .user-item {
+    background: #4B0082;
+    border: 2px solid #FFD700;
+    padding: 15px;
+    margin: 10px auto;
+    width: 50%;
+    border-radius: 10px;
+    font-size: 20px;
+  }
+  
+  .signup-btn {
+    background-color: #FFD700;
+    color: #4B0082;
+    padding: 15px 30px;
+    border: none;
+    border-radius: 5px;
+    font-size: 18px;
+    cursor: pointer;
+    margin-top: 20px;
+    font-weight: bold;
+  }
+  
+  .signup-btn:hover {
+    background-color: #F5F5F5;
+    color: #4B0082;
+  }
+  

@@ -1,13 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
-
+import '../styles/HomePage.css';
 
 function HomePage() {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const navigate = useNavigate();
 
   useEffect(() => {
     axios.get('http://127.0.0.1:8000/api/users/')
@@ -15,7 +13,7 @@ function HomePage() {
         setUsers(response.data);
         setLoading(false);
       })
-      .catch(error => {
+      .catch(() => {
         setError('Error fetching user data.');
         setLoading(false);
       });
@@ -29,16 +27,12 @@ function HomePage() {
       ) : error ? (
         <p>{error}</p>
       ) : (
-        <ul>
-          {users.map((user) => (
-            <li key={user.id}>{user.username}</li>
-          ))}
-        </ul>
+        <ul className="user-list">
+  {users.map((user, index) => (
+    <li key={user.id || index} className="user-item">{user.username}</li>
+  ))}
+</ul>
       )}
-
-      <button className="signup-btn" onClick={() => navigate('/signup')}>
-        Go to Signup Page
-      </button>
     </div>
   );
 }

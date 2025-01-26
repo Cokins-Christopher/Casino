@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
+import '../styles/Signup.css';
 
 
 function SignupPage() {
@@ -25,12 +26,15 @@ function SignupPage() {
         setMessage('Signup successful!');
         setTimeout(() => {
           navigate('/');  // Redirect to home page
-        }, 1500);
+        }, 500);
       }
     } catch (error) {
       setMessage('Signup failed. Please try again.');
     }
   };
+
+  
+  
 
   return (
     <div className="signup-container">
