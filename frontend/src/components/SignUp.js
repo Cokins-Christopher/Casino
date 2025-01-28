@@ -14,24 +14,26 @@ function SignupPage() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setMessage('');
-
+  
     try {
       const response = await axios.post('http://127.0.0.1:8000/api/users/', {
         username,
         email,
         password
       });
-
+  
       if (response.status === 201) {
         setMessage('Signup successful!');
         setTimeout(() => {
-          navigate('/');  // Redirect to home page
-        }, 500);
+          navigate('/'); // Redirect to home page
+        }, 1500);
       }
     } catch (error) {
-      setMessage('Signup failed. Please try again.');
+      console.error('Error Response:', error.response.data); // Log backend errors
+      setMessage(error.response?.data?.detail || 'Signup failed. Please try again.');
     }
   };
+  
 
   
   

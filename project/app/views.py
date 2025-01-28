@@ -28,6 +28,7 @@ def login_user(request):
     if not email or not password:
         return Response({"error": "Email and password are required."}, status=status.HTTP_400_BAD_REQUEST)
 
+    # Use email as the username field for authentication
     user = authenticate(username=email, password=password)
 
     if user is not None:
