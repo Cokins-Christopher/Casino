@@ -11,27 +11,35 @@ function LoginPage() {
 
   const handleLogin = async (e) => {
     e.preventDefault();
-    setMessage('');
-  
+    setMessage(''); // Reset message for fresh attempt
+
     try {
-      const response = await axios.post('http://127.0.0.1:8000/api/login/', {
-        email,
-        password
-      }, {
-        headers: { "Content-Type": "application/json" }
-      });
-  
+      const response = await axios.post(
+        'http://127.0.0.1:8000/api/login/',
+        { email, password },
+        { headers: { "Content-Type": "application/json" } }
+      );
+
       if (response.status === 200) {
         setMessage('Login successful!');
-        setTimeout(() => navigate('/'), 1500);
+        // Optionally, you can store a token here
+        setTimeout(() => navigate('/'), 1000); // Navigate to home after 1s
       }
     } catch (error) {
-        console.error('Error:', error.response.data);
-        setMessage(error.response?.data?.password?.[0] || 'Signup failed. Please try again.');
+      if (error.response) {
+        // Backend responded with an error
+        const errorMessage = error.response.data.error || 'Invalid credentials. Please try again.';
+        setMessage(errorMessage);
+      } else if (error.request) {
+        // No response from backend
+        setMessage('Unable to reach the server. Please check your connection.');
+      } else {
+        // Other errors
+        setMessage('An unexpected error occurred. Please try again.');
+      }
+      console.error('Error:', error);
     }
   };
-  
-  
 
   return (
     <div className="login-container">
@@ -53,7 +61,7 @@ function LoginPage() {
         />
         <button type="submit" className="login-btn">Log In</button>
       </form>
-      {message && <p>{message}</p>}
+      {message && <p className="login-message">{message}</p>}
     </div>
   );
 }

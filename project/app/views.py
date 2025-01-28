@@ -1,10 +1,13 @@
 from rest_framework import generics, status
 from rest_framework.response import Response
 from rest_framework.decorators import api_view
+from django.views.decorators.csrf import csrf_exempt
 from django.contrib.auth import authenticate
-from .models import CustomUser
+from .models import CustomUser  # Use your custom user model
 from .serializer import UserSerializer
 from rest_framework.permissions import AllowAny
+from django.http import JsonResponse
+import json
 
 # User Registration View
 class RegisterUserView(generics.ListCreateAPIView):
@@ -20,18 +23,25 @@ class RegisterUserView(generics.ListCreateAPIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 # User Login View
-@api_view(['POST'])
+@csrf_exempt
 def login_user(request):
-    email = request.data.get('email')
-    password = request.data.get('password')
+    if request.method == "POST":
+        data = json.loads(request.body)
+        email = data.get("email")
+        password = data.get("password")
 
-    if not email or not password:
-        return Response({"error": "Email and password are required."}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            # Get the user by email (assuming email is unique)
+            user = CustomUser.objects.get(email=email)
+        except CustomUser.DoesNotExist:
+            return JsonResponse({"error": "Invalid email or user does not exist"}, status=401)
 
-    # Use email as the username field for authentication
-    user = authenticate(username=email, password=password)
+        # Authenticate the user
+        user = authenticate(request, username=user.username, password=password)
 
-    if user is not None:
-        return Response({"message": "Login successful!", "user": {"username": user.username, "email": user.email}}, status=status.HTTP_200_OK)
-    else:
-        return Response({"error": "Invalid email or password."}, status=status.HTTP_401_UNAUTHORIZED)
+        if user is not None:
+            return JsonResponse({"message": "Login successful"}, status=200)
+        else:
+            return JsonResponse({"error": "Invalid credentials"}, status=401)
+
+    return JsonResponse({"error": "Invalid request method"}, status=405)
