@@ -26,7 +26,7 @@ function SignupPage() {
         setMessage('Signup successful!');
         setTimeout(() => {
           navigate('/'); // Redirect to home page
-        }, 1500);
+        }, 750);
       }
     } catch (error) {
       console.error('Error Response:', error.response.data); // Log backend errors

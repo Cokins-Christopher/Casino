@@ -1,0 +1,65 @@
+.games-container {
+    text-align: center;
+    padding: 20px;
+    background-color: #4B0082; /* Purple background */
+    color: #FFD700; /* Gold text */
+    min-height: 100vh; /* Ensure it covers the full viewport height */
+  }
+  
+  h1 {
+    font-size: 36px;
+    margin-bottom: 20px;
+  }
+  
+  .games-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); /* Responsive grid */
+    gap: 20px;
+    padding: 20px;
+  }
+  
+  .game-card {
+    background-color: #4B0082; /* Purple background */
+    border: 2px solid #FFD700; /* Gold border */
+    border-radius: 10px;
+    padding: 20px;
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
+    text-align: center; /* Center content */
+    display: flex;
+    flex-direction: column;
+    align-items: center; /* Center align the image and text */
+  }
+  
+  .game-card:hover {
+    box-shadow: 0 12px 24px rgba(0, 0, 0, 0.3); /* Slight hover effect */
+  }
+  
+  .game-image {
+    width: 100%;
+    max-width: 250px; /* Limit image size */
+    height: auto; /* Maintain aspect ratio */
+    border-radius: 8px;
+    margin-bottom: 15px;
+  }
+  
+  .game-name {
+    font-size: 24px;
+    font-weight: bold;
+    color: #FFD700;
+    margin-bottom: 10px;
+  }
+  
+  .game-description {
+    font-size: 16px;
+    margin-bottom: 10px;
+  }
+  
+  .game-bet {
+    font-size: 16px;
+    margin-bottom: 10px;
+  }
+  
+  .game-how-to-win {
+    font-size: 14px;
+  }
+  

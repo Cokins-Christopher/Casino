@@ -1,46 +1,112 @@
-.home-container {
-    background: linear-gradient(to bottom, #2C003E, #4B0082);
-    color: #F5F5F5;
-    text-align: center;
-    padding: 50px;
+.carousel-container {
     min-height: 100vh;
+    text-align: center;
+    padding: 20px;
+    position: relative;
+    background-color: #4B0082; /* Purple background */
+    color: #FFD700; /* Gold text */
   }
   
   h1 {
+    color: #FFD700; /* Gold for the title */
     font-size: 36px;
-    color: #FFD700;
     margin-bottom: 20px;
   }
   
-  .user-list {
-    list-style: none;
-    padding: 0;
+  .carousel {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    overflow: hidden;
+    position: relative;
+    height: 400px; /* Increased height for larger tiles */
   }
   
-  .user-item {
-    background: #4B0082;
-    border: 2px solid #FFD700;
+  .carousel-item {
+    position: absolute;
+    width: 300px; /* Maintain the width */
+    height: 350px; /* Maintain the height */
+    opacity: 0;
+    transform: scale(0.8) translateX(-100%);
+    transition: transform 0.5s ease, opacity 0.5s ease;
+    background-color: #4B0082; /* Purple tile background */
+    border: 2px solid #FFD700; /* Gold border */
+    border-radius: 15px;
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2); /* Slight shadow for depth */
+    display: flex;
+    flex-direction: column;
+    justify-content: center; /* Center content vertically */
+    align-items: center; /* Center content horizontally */
     padding: 15px;
-    margin: 10px auto;
-    width: 50%;
+    overflow: hidden; /* Prevent content from overflowing */
+  }
+  
+  .carousel-item.active {
+    transform: scale(1) translateX(0);
+    opacity: 1;
+    z-index: 3;
+  }
+  
+  .carousel-item.previous {
+    transform: scale(0.8) translateX(-150%);
+    opacity: 0.5;
+    z-index: 2;
+  }
+  
+  .carousel-item.next {
+    transform: scale(0.8) translateX(150%);
+    opacity: 0.5;
+    z-index: 2;
+  }
+  
+  .carousel-image {
+    width: 90%; /* Make the image responsive */
+    height: auto; /* Maintain aspect ratio */
+    max-height: 200px; /* Prevent the image from exceeding container height */
+    object-fit: contain; /* Ensure the image scales properly without cutting off */
     border-radius: 10px;
-    font-size: 20px;
+    margin-bottom: 10px;
   }
   
-  .signup-btn {
-    background-color: #FFD700;
-    color: #4B0082;
-    padding: 15px 30px;
-    border: none;
-    border-radius: 5px;
-    font-size: 18px;
-    cursor: pointer;
-    margin-top: 20px;
+  .carousel-title {
+    font-size: 24px; /* Larger title */
     font-weight: bold;
+    margin: 10px 0;
   }
   
-  .signup-btn:hover {
-    background-color: #F5F5F5;
-    color: #4B0082;
+  .carousel-description {
+    color: #FFD700; /* Gold for descriptions */
+    font-size: 16px;
+  }
+  
+  .carousel-btn {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    background-color: #FFD700; /* Gold button background */
+    color: #4B0082; /* Purple button text */
+    border: none;
+    font-size: 24px;
+    cursor: pointer;
+    border-radius: 50%;
+    width: 50px;
+    height: 50px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+  }
+  
+  .carousel-btn.left {
+    left: 20px;
+  }
+  
+  .carousel-btn.right {
+    right: 20px;
+  }
+  
+  .carousel-btn:hover {
+    background-color: #4B0082; /* Purple hover */
+    color: #FFD700; /* Gold hover text */
   }
   

@@ -1,53 +1,104 @@
+/* Navbar container */
 .navbar {
-    background: #4B0082;
-    color: #FFD700;
+    background: #4B0082; /* Purple background */
+    color: #FFD700; /* Gold text */
     display: flex;
     justify-content: space-between;
     align-items: center;
     padding: 20px;
-    box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
   }
   
-  .logo {
+  /* Logo styles */
+  .logo-link {
+    color: #FFD700; /* Gold color for the logo */
+    text-decoration: none; /* Remove underline */
     font-size: 24px;
     font-weight: bold;
   }
   
-  .nav-links a {
-    color: #FFD700;
-    text-decoration: none;
+  .logo-link:visited {
+    color: #FFD700; /* Prevent red color on visited */
+  }
+  
+  .logo-link:active {
+    color: #FFD700; /* Keep gold color when clicked */
+  }
+  
+  .logo-link:hover {
+    text-decoration: underline; /* Add underline on hover */
+  }
+  
+  /* Navigation links container */
+  .nav-links {
+    display: flex;
+  }
+  
+  .nav-link {
+    color: #FFD700; /* Gold for links */
+    text-decoration: none; /* Remove underline */
     margin: 0 15px;
     font-size: 18px;
   }
   
-  .nav-links a:hover {
-    text-decoration: underline;
+  .nav-link:hover {
+    text-decoration: underline; /* Add underline on hover */
+  }
+  
+  .nav-link:visited {
+    color: #FFD700; /* Prevent red color on visited links */
+  }
+  
+  .nav-link:active {
+    color: #FFD700; /* Keep gold color when clicked */
+  }
+  
+  /* Auth buttons container */
+  .auth-buttons {
+    display: flex;
+    gap: 10px; /* Add spacing between buttons */
   }
   
   .auth-buttons .login-btn,
-.auth-buttons .signup-btn {
-  width: 130px;  /* Ensure both buttons have the same width */
-  padding: 10px 20px;  /* Same padding */
-  font-size: 18px;  /* Same font size */
-  border: none;
-  border-radius: 5px;
-  cursor: pointer;
-  font-weight: bold;
-  text-align: center;
-  margin-left: 10px;
-}
-
-.auth-buttons .signup-btn {
-  background-color: #F5F5F5;
-  color: #4B0082;
-}
-
-.auth-buttons .login-btn {
-  background-color: #FFD700;
-  color: #4B0082;
-}
-
-.auth-buttons .login-btn:hover,
-.auth-buttons .signup-btn:hover {
-  opacity: 0.8;
-}
+  .auth-buttons .signup-btn {
+    width: 130px; /* Ensure both buttons have the same width */
+    padding: 10px 20px; /* Padding for consistent size */
+    font-size: 18px; /* Font size for better readability */
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-weight: bold;
+    text-align: center;
+  }
+  
+  .auth-buttons .login-btn {
+    background-color: #FFD700; /* Gold background */
+    color: #4B0082; /* Purple text */
+  }
+  
+  .auth-buttons .signup-btn {
+    background-color: #F5F5F5; /* Light background */
+    color: #4B0082; /* Purple text */
+  }
+  
+  .auth-buttons .login-btn:hover,
+  .auth-buttons .signup-btn:hover {
+    opacity: 0.8; /* Slight fade on hover */
+  }
+  
+  /* Responsive styling */
+  @media (max-width: 768px) {
+    .navbar {
+      flex-direction: column; /* Stack items on smaller screens */
+      align-items: flex-start;
+    }
+  
+    .nav-links {
+      margin-top: 10px;
+    }
+  
+    .auth-buttons {
+      margin-top: 10px;
+    }
+  }
+  

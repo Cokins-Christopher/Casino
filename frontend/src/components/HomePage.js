@@ -1,38 +1,57 @@
-import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import React, { useState } from 'react';
 import '../styles/HomePage.css';
+import blackjackImage from '../images/blackjack.png';
+import rouletteImage from '../images/roulette.png';
+import slotsImage from '../images/slots.png';
+import pokerImage from '../images/poker.png';
 
 function HomePage() {
-  const [users, setUsers] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+    const games = [
+        { name: 'Blackjack', image: blackjackImage, description: 'Test your skills in the classic card game!' },
+        { name: 'Roulette', image: rouletteImage, description: 'Spin the wheel and try your luck!' },
+        { name: 'Slots', image: slotsImage, description: 'Pull the lever and hit the jackpot!' },
+        { name: 'Poker', image: pokerImage, description: 'Test your luck and strategy in the classic video poker game!' },
+      ];
 
-  useEffect(() => {
-    axios.get('http://127.0.0.1:8000/api/users/')
-      .then(response => {
-        setUsers(response.data);
-        setLoading(false);
-      })
-      .catch(() => {
-        setError('Error fetching user data.');
-        setLoading(false);
-      });
-  }, []);
+  const [currentIndex, setCurrentIndex] = useState(0);
+
+  const handleNext = () => {
+    setCurrentIndex((prevIndex) => (prevIndex + 1) % games.length);
+  };
+
+  const handlePrev = () => {
+    setCurrentIndex((prevIndex) => (prevIndex - 1 + games.length) % games.length);
+  };
 
   return (
-    <div className="home-container">
-      <h1>Registered Users</h1>
-      {loading ? (
-        <p>Loading users...</p>
-      ) : error ? (
-        <p>{error}</p>
-      ) : (
-        <ul className="user-list">
-  {users.map((user, index) => (
-    <li key={user.id || index} className="user-item">{user.username}</li>
-  ))}
-</ul>
-      )}
+    <div className="carousel-container">
+      <h1>Available Games</h1>
+      <div className="carousel">
+        {games.map((game, index) => {
+          const isActive = index === currentIndex;
+          const isPrevious = index === (currentIndex - 1 + games.length) % games.length;
+          const isNext = index === (currentIndex + 1) % games.length;
+
+          return (
+            <div
+              key={game.name}
+              className={`carousel-item ${
+                isActive ? 'active' : isPrevious ? 'previous' : isNext ? 'next' : ''
+              }`}
+            >
+              <img src={`${game.image}`} alt={game.name} className="carousel-image" />
+              <h3 className="carousel-title">{game.name}</h3>
+              <p className="carousel-description">{game.description}</p>
+            </div>
+          );
+        })}
+      </div>
+      <button className="carousel-btn left" onClick={handlePrev}>
+        ◀
+      </button>
+      <button className="carousel-btn right" onClick={handleNext}>
+        ▶
+      </button>
     </div>
   );
 }

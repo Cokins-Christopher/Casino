@@ -1,0 +1,56 @@
+.promotions-container {
+    text-align: center;
+    padding: 20px;
+    background-color: #4B0082; /* Purple background */
+    color: #FFD700; /* Gold text */
+    min-height: 100vh; /* Full screen height */
+  }
+  
+  h1 {
+    font-size: 36px;
+    margin-bottom: 20px;
+  }
+  
+  .promotions-list {
+    display: flex;
+    flex-direction: column; /* Stack items vertically */
+    gap: 20px; /* Space between cards */
+    align-items: center; /* Center the cards */
+  }
+  
+  .promotion-card {
+    width: 90%; /* Take most of the screen width */
+    max-width: 600px; /* Limit the card width */
+    background-color: #4B0082; /* Purple background */
+    border: 2px solid #FFD700; /* Gold border */
+    border-radius: 10px;
+    padding: 20px;
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
+    text-align: left;
+  }
+  
+  .promotion-card:hover {
+    box-shadow: 0 12px 24px rgba(0, 0, 0, 0.3); /* Hover effect */
+  }
+  
+  .promotion-title {
+    font-size: 24px;
+    font-weight: bold;
+    color: #FFD700;
+    margin-bottom: 10px;
+  }
+  
+  .promotion-description {
+    font-size: 16px;
+    margin-bottom: 10px;
+  }
+  
+  .promotion-code {
+    font-size: 16px;
+    margin-bottom: 10px;
+  }
+  
+  .promotion-terms {
+    font-size: 14px;
+  }
+  

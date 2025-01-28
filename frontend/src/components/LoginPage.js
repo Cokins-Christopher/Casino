@@ -23,7 +23,7 @@ function LoginPage() {
       if (response.status === 200) {
         setMessage('Login successful!');
         // Optionally, you can store a token here
-        setTimeout(() => navigate('/'), 1000); // Navigate to home after 1s
+        setTimeout(() => navigate('/'), 750);
       }
     } catch (error) {
       if (error.response) {

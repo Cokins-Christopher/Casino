@@ -36,3 +36,18 @@
     transform: rotate(360deg);
   }
 }
+
+/* Ensure the entire page has a purple background */
+html, body {
+  margin: 0;
+  padding: 0;
+  background-color: #4B0082; /* Match your purple theme */
+  color: #FFD700; /* Gold text, if needed globally */
+  height: 100%; /* Make sure it covers the full height */
+}
+
+#root {
+  min-height: 100%; /* Ensure the React app fills the viewport */
+  display: flex;
+  flex-direction: column;
+}
