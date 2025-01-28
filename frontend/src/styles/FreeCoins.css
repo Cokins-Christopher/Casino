@@ -1,0 +1,101 @@
+/* Free Coins Page Container */
+.free-coins-container {
+    text-align: center;
+    padding: 20px;
+    background-color: #4B0082;
+    color: #FFD700;
+    min-height: 100vh;
+}
+
+/* Wheel Container */
+.wheel-container {
+    position: relative;
+    width: 350px;
+    height: 350px;
+    margin: 20px auto;
+    cursor: pointer;
+}
+
+/* The Wheel */
+.wheel {
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    border: 5px solid #FFD700;
+    position: relative;
+    transition: transform 3s cubic-bezier(0.25, 0.1, 0.25, 1);
+    background: conic-gradient(
+        #FFD700 0% 16.6%, #4B0082 16.6% 33.2%,
+        #FFD700 33.2% 49.8%, #4B0082 49.8% 66.4%,
+        #FFD700 66.4% 83%, #4B0082 83% 100%
+    );
+}
+
+/* Arrow Pointer */
+.wheel-pointer {
+    position: absolute;
+    top: -25px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 32px;
+    color: red;
+}
+
+/* Wheel Segments */
+.wheel-segment {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    left: 0;
+    top: 0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    transform-origin: center;
+}
+
+/* Prize Text */
+.wheel-text {
+    position: absolute;
+    color: white;
+    font-size: 25px;
+    font-weight: bold;
+    text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.8);
+    transform-origin: center;
+    top: 70px;
+    left: 50%;
+    margin-left: -77px;
+}
+/* Individual segment rotations */
+.wheel-segment:nth-child(1) { transform: rotate(15deg); }
+.wheel-segment:nth-child(1) .wheel-text { transform: rotate(-30deg); }
+
+.wheel-segment:nth-child(2) { transform: rotate(45deg); }
+.wheel-segment:nth-child(2) .wheel-text { transform: rotate(-30deg); }
+
+.wheel-segment:nth-child(3) { transform: rotate(105deg); }
+.wheel-segment:nth-child(3) .wheel-text { transform: rotate(-30deg); }
+
+.wheel-segment:nth-child(4) { transform: rotate(165deg); }
+.wheel-segment:nth-child(4) .wheel-text { transform: rotate(-30deg); }
+
+.wheel-segment:nth-child(5) { transform: rotate(225deg); }
+.wheel-segment:nth-child(5) .wheel-text { transform: rotate(-30deg); }
+
+.wheel-segment:nth-child(6) { transform: rotate(285deg); }
+.wheel-segment:nth-child(6) .wheel-text { transform: rotate(-30deg); }
+
+/* Reward Message */
+.reward-message {
+    font-size: 24px;
+    margin-top: 20px;
+    font-weight: bold;
+}
+
+/* Cooldown Timer */
+.cooldown-message {
+    font-size: 20px;
+    margin-top: 10px;
+    color: #FFD700;
+    font-weight: bold;
+}

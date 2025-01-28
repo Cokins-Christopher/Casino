@@ -63,7 +63,6 @@ CSRF_TRUSTED_ORIGINS = [
     'http://localhost:3000',  # React frontend
 ]
 
-
 AUTH_USER_MODEL = 'app.CustomUser'
 
 

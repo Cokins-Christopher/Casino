@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useContext } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
+import { AuthContext } from '../context/AuthContext'; // Import AuthContext
 import '../styles/Login.css';
 
 function LoginPage() {
@@ -8,6 +9,7 @@ function LoginPage() {
   const [password, setPassword] = useState('');
   const [message, setMessage] = useState('');
   const navigate = useNavigate();
+  const { login } = useContext(AuthContext); // Get the login function from AuthContext
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -21,8 +23,13 @@ function LoginPage() {
       );
 
       if (response.status === 200) {
+        const { username } = response.data; // Assume backend returns username in response
         setMessage('Login successful!');
-        // Optionally, you can store a token here
+        
+        // Update AuthContext and store username in a cookie
+        login({ username });
+
+        // Navigate to home after a short delay
         setTimeout(() => navigate('/'), 750);
       }
     } catch (error) {

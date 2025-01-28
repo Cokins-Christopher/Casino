@@ -8,6 +8,8 @@ from .serializer import UserSerializer
 from rest_framework.permissions import AllowAny
 from django.http import JsonResponse
 import json
+from .models import Transaction
+from datetime import datetime, timedelta
 
 # User Registration View
 class RegisterUserView(generics.ListCreateAPIView):
@@ -31,17 +33,61 @@ def login_user(request):
         password = data.get("password")
 
         try:
-            # Get the user by email (assuming email is unique)
             user = CustomUser.objects.get(email=email)
         except CustomUser.DoesNotExist:
             return JsonResponse({"error": "Invalid email or user does not exist"}, status=401)
 
-        # Authenticate the user
         user = authenticate(request, username=user.username, password=password)
 
         if user is not None:
-            return JsonResponse({"message": "Login successful"}, status=200)
+            return JsonResponse({"message": "Login successful", "username": user.username, "id": user.id}, status=200)
         else:
             return JsonResponse({"error": "Invalid credentials"}, status=401)
 
     return JsonResponse({"error": "Invalid request method"}, status=405)
+
+def leaderboard(request, period):
+    top_earners = Transaction.get_top_earners(period)
+    return JsonResponse(list(top_earners), safe=False)
+
+
+@csrf_exempt
+def update_spin(request):
+    if request.method == "POST":
+        try:
+            data = json.loads(request.body)
+            user_id = data.get("userId")
+            amount = data.get("amount")
+
+            # Check if user exists
+            user = CustomUser.objects.get(id=user_id)
+            
+            # Update balance & last spin time
+            user.balance += amount  
+            user.last_spin = now()  
+            user.save()
+
+            return JsonResponse({
+                "message": "Spin updated successfully",
+                "lastSpinTime": user.last_spin.timestamp() * 1000  # Convert to JavaScript timestamp
+            })
+
+        except CustomUser.DoesNotExist:
+            return JsonResponse({"error": "User not found"}, status=404)
+        except json.JSONDecodeError:
+            return JsonResponse({"error": "Invalid JSON format"}, status=400)
+
+    return JsonResponse({"error": "Invalid request method"}, status=405)
+
+
+def last_spin(request, user_id):
+    try:
+        user = CustomUser.objects.get(id=user_id)
+
+        # If user has never spun before, return None
+        if not user.last_spin:
+            return JsonResponse({"lastSpinTime": None})
+
+        return JsonResponse({"lastSpinTime": user.last_spin.timestamp() * 1000})  # Convert to JavaScript timestamp
+    except CustomUser.DoesNotExist:
+        return JsonResponse({"error": "User not found"}, status=404)

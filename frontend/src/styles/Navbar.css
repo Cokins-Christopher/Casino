@@ -7,60 +7,57 @@
     align-items: center;
     padding: 20px;
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-  }
-  
-  /* Logo styles */
-  .logo-link {
+    position: sticky;
+    top: 0;
+    z-index: 1000; /* Ensure navbar stays on top */
+}
+
+/* Logo styles */
+.logo-link {
     color: #FFD700; /* Gold color for the logo */
     text-decoration: none; /* Remove underline */
     font-size: 24px;
     font-weight: bold;
-  }
-  
-  .logo-link:visited {
-    color: #FFD700; /* Prevent red color on visited */
-  }
-  
-  .logo-link:active {
-    color: #FFD700; /* Keep gold color when clicked */
-  }
-  
-  .logo-link:hover {
+}
+
+.logo-link:visited,
+.logo-link:active,
+.logo-link:hover {
+    color: #FFD700; /* Keep gold color on visited, active, or hover */
     text-decoration: underline; /* Add underline on hover */
-  }
-  
-  /* Navigation links container */
-  .nav-links {
+}
+
+/* Navigation links container */
+.nav-links {
     display: flex;
-  }
-  
-  .nav-link {
+    gap: 20px; /* Add spacing between links */
+}
+
+.nav-link {
     color: #FFD700; /* Gold for links */
     text-decoration: none; /* Remove underline */
-    margin: 0 15px;
     font-size: 18px;
-  }
-  
-  .nav-link:hover {
+    font-weight: bold;
+    transition: text-decoration 0.2s ease;
+}
+
+.nav-link:hover {
     text-decoration: underline; /* Add underline on hover */
-  }
-  
-  .nav-link:visited {
-    color: #FFD700; /* Prevent red color on visited links */
-  }
-  
-  .nav-link:active {
-    color: #FFD700; /* Keep gold color when clicked */
-  }
-  
-  /* Auth buttons container */
-  .auth-buttons {
+}
+
+.nav-link:visited,
+.nav-link:active {
+    color: #FFD700; /* Prevent visited or active styles */
+}
+
+/* Auth buttons container */
+.auth-buttons {
     display: flex;
     gap: 10px; /* Add spacing between buttons */
-  }
-  
-  .auth-buttons .login-btn,
-  .auth-buttons .signup-btn {
+}
+
+.auth-buttons .login-btn,
+.auth-buttons .signup-btn {
     width: 130px; /* Ensure both buttons have the same width */
     padding: 10px 20px; /* Padding for consistent size */
     font-size: 18px; /* Font size for better readability */
@@ -69,36 +66,90 @@
     cursor: pointer;
     font-weight: bold;
     text-align: center;
-  }
-  
-  .auth-buttons .login-btn {
+    transition: transform 0.2s ease, opacity 0.2s ease;
+}
+
+.auth-buttons .login-btn {
     background-color: #FFD700; /* Gold background */
     color: #4B0082; /* Purple text */
-  }
-  
-  .auth-buttons .signup-btn {
+}
+
+.auth-buttons .signup-btn {
     background-color: #F5F5F5; /* Light background */
     color: #4B0082; /* Purple text */
-  }
-  
-  .auth-buttons .login-btn:hover,
-  .auth-buttons .signup-btn:hover {
+}
+
+.auth-buttons .login-btn:hover,
+.auth-buttons .signup-btn:hover {
     opacity: 0.8; /* Slight fade on hover */
-  }
-  
-  /* Responsive styling */
-  @media (max-width: 768px) {
+    transform: scale(1.05); /* Slight zoom on hover */
+}
+
+/* Dropdown Menu Styles */
+.user-dropdown {
+    position: relative;
+    display: inline-block;
+    cursor: pointer;
+}
+
+.username {
+    color: #FFD700; /* Gold text */
+    font-weight: bold;
+    cursor: pointer;
+}
+
+.dropdown-menu {
+    position: absolute;
+    top: 100%; /* Align dropdown below the username */
+    right: 0;
+    background-color: #4B0082; /* Purple background */
+    border: 1px solid #FFD700; /* Gold border */
+    border-radius: 5px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+    padding: 10px;
+    z-index: 1000;
+    width: 200px; /* Set a fixed width for consistent appearance */
+}
+
+.dropdown-menu button {
+    background: none;
+    border: none;
+    color: #FFD700; /* Gold text */
+    padding: 10px 0;
+    text-align: left;
+    width: 100%;
+    cursor: pointer;
+    font-size: 16px;
+    font-weight: bold;
+    transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+.dropdown-menu button:hover {
+    background-color: #563d7c; /* Slightly darker purple */
+    color: #FFFFFF; /* White text for better contrast */
+}
+
+/* Responsive styling */
+@media (max-width: 768px) {
     .navbar {
-      flex-direction: column; /* Stack items on smaller screens */
-      align-items: flex-start;
+        flex-direction: column; /* Stack items on smaller screens */
+        align-items: flex-start;
     }
-  
+
     .nav-links {
-      margin-top: 10px;
+        flex-direction: column; /* Stack links vertically */
+        gap: 10px;
+        margin-top: 10px;
     }
-  
+
     .auth-buttons {
-      margin-top: 10px;
+        flex-direction: column; /* Stack buttons vertically */
+        gap: 10px;
+        margin-top: 10px;
     }
-  }
-  
+
+    .dropdown-menu {
+        right: auto;
+        left: 0; /* Align dropdown with username for smaller screens */
+    }
+}
