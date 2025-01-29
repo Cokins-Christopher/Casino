@@ -1,0 +1,85 @@
+/* Stats Page Container */
+.stats-container {
+    text-align: center;
+    padding: 20px;
+    background-color: #4B0082; /* Purple background */
+    color: #FFD700; /* Gold text */
+    min-height: 100vh;
+}
+
+/* Stats Header */
+.stats-container h2 {
+    font-size: 28px;
+    font-weight: bold;
+    margin-bottom: 20px;
+    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.8);
+}
+
+/* Stats List */
+.stats-list {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    max-width: 400px;
+    margin: 0 auto;
+    background-color: #2E0854; /* Dark purple box */
+    padding: 20px;
+    border-radius: 12px;
+    border: 3px solid #FFD700;
+    box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.5);
+}
+
+/* Individual Stat Item */
+.stats-list p {
+    font-size: 22px;
+    font-weight: bold;
+    margin: 10px 0;
+    padding: 10px;
+    border-bottom: 1px solid #FFD700;
+    width: 100%;
+    text-align: center;
+}
+
+.stats-list p:last-child {
+    border-bottom: none;
+}
+
+/* Highlighted Stat Values */
+.stats-list strong {
+    color: #FFD700; /* Gold highlight */
+}
+
+/* Loading Message */
+.loading-message {
+    font-size: 20px;
+    margin-top: 20px;
+    font-weight: bold;
+}
+
+/* Error Message */
+.error-message {
+    font-size: 18px;
+    color: red;
+    margin-top: 20px;
+    font-weight: bold;
+}
+
+/* Button Styles */
+.stats-btn {
+    display: inline-block;
+    background-color: #FFD700; /* Gold */
+    color: #4B0082; /* Purple text */
+    font-size: 20px;
+    font-weight: bold;
+    padding: 10px 20px;
+    border-radius: 8px;
+    border: 2px solid #FFD700;
+    cursor: pointer;
+    margin-top: 20px;
+    transition: transform 0.2s ease-in-out, background-color 0.2s ease-in-out;
+}
+
+.stats-btn:hover {
+    transform: scale(1.1);
+    background-color: #FFC107; /* Slightly different gold */
+}

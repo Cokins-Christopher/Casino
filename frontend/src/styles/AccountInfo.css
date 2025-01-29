@@ -1,0 +1,124 @@
+/* Account Page Container */
+.account-container {
+    text-align: center;
+    padding: 40px 20px;
+    background-color: #4B0082; /* Deep Purple Background */
+    color: #FFD700; /* Gold Text */
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+/* Account Details Box */
+.account-details {
+    background-color: #2E0854; /* Darker Purple Box */
+    padding: 25px;
+    border-radius: 12px;
+    border: 3px solid #FFD700;
+    box-shadow: 0px 6px 12px rgba(0, 0, 0, 0.5);
+    max-width: 420px;
+    width: 100%;
+}
+
+/* Account Info Text */
+.account-details p {
+    font-size: 20px;
+    font-weight: bold;
+    margin-bottom: 15px;
+    padding: 8px 0;
+    border-bottom: 1px solid rgba(255, 215, 0, 0.6);
+}
+
+/* Remove border for last element */
+.account-details p:last-child {
+    border-bottom: none;
+}
+
+/* Button Styling */
+.toggle-btn, .edit-btn, .update-btn, .cancel-btn {
+    display: inline-block;
+    margin: 10px 5px;
+    padding: 12px 20px;
+    font-size: 18px;
+    font-weight: bold;
+    border-radius: 8px;
+    border: 2px solid #FFD700;
+    cursor: pointer;
+    transition: transform 0.2s ease-in-out, background-color 0.2s ease-in-out;
+}
+
+/* Button Colors */
+.toggle-btn {
+    background-color: #FFD700;
+    color: #4B0082;
+}
+
+.edit-btn {
+    background-color: #FFD700;
+    color: #4B0082;
+}
+
+.update-btn {
+    background-color: #32CD32;
+    color: white;
+    border: 2px solid #32CD32;
+}
+
+.cancel-btn {
+    background-color: #B22222;
+    color: white;
+    border: 2px solid #B22222;
+}
+
+/* Hover Effects */
+.toggle-btn:hover, .edit-btn:hover {
+    transform: scale(1.1);
+    background-color: #FFC107;
+}
+
+.update-btn:hover {
+    transform: scale(1.1);
+    background-color: #28A745;
+}
+
+.cancel-btn:hover {
+    transform: scale(1.1);
+    background-color: #8B0000;
+}
+
+/* Form Input Styling */
+.account-details input {
+    width: 90%;
+    padding: 12px;
+    margin: 10px 0;
+    border-radius: 6px;
+    border: 2px solid #FFD700;
+    background-color: #4B0082;
+    color: white;
+    font-size: 16px;
+    text-align: center;
+}
+
+/* Focus Effect for Inputs */
+.account-details input:focus {
+    outline: none;
+    border-color: #FFC107;
+    background-color: #3A0066;
+}
+
+/* Responsive Styling */
+@media (max-width: 480px) {
+    .account-details {
+        max-width: 90%;
+    }
+
+    .account-details p {
+        font-size: 18px;
+    }
+
+    .toggle-btn, .edit-btn, .update-btn, .cancel-btn {
+        font-size: 16px;
+        padding: 10px 16px;
+    }
+}

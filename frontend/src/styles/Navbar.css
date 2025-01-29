@@ -53,54 +53,58 @@
 /* Auth buttons container */
 .auth-buttons {
     display: flex;
-    gap: 10px; /* Add spacing between buttons */
+    align-items: center;
+    gap: 15px; /* Spacing between buttons and user info */
 }
 
-.auth-buttons .login-btn,
-.auth-buttons .signup-btn {
-    width: 130px; /* Ensure both buttons have the same width */
-    padding: 10px 20px; /* Padding for consistent size */
-    font-size: 18px; /* Font size for better readability */
-    border: none;
-    border-radius: 5px;
-    cursor: pointer;
-    font-weight: bold;
-    text-align: center;
-    transition: transform 0.2s ease, opacity 0.2s ease;
-}
-
-.auth-buttons .login-btn {
-    background-color: #FFD700; /* Gold background */
-    color: #4B0082; /* Purple text */
-}
-
-.auth-buttons .signup-btn {
-    background-color: #F5F5F5; /* Light background */
-    color: #4B0082; /* Purple text */
-}
-
-.auth-buttons .login-btn:hover,
-.auth-buttons .signup-btn:hover {
-    opacity: 0.8; /* Slight fade on hover */
-    transform: scale(1.05); /* Slight zoom on hover */
-}
-
-/* Dropdown Menu Styles */
+/* User dropdown container */
 .user-dropdown {
+    display: flex;
+    align-items: center;
     position: relative;
-    display: inline-block;
-    cursor: pointer;
+    gap: 15px; /* Spacing between balance & username */
 }
 
+/* User balance and username alignment */
+.user-info {
+    display: flex;
+    align-items: center;
+    gap: 10px; /* Space between balance & username */
+}
+
+/* Balance display */
+.balance {
+    font-size: 16px;
+    font-weight: bold;
+    color: #FFD700;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+/* Plus button for purchasing coins */
+.plus-button {
+    cursor: pointer;
+    font-weight: bold;
+    font-size: 18px;
+    transition: transform 0.2s ease-in-out;
+}
+
+.plus-button:hover {
+    transform: scale(1.2);
+}
+
+/* Username text */
 .username {
-    color: #FFD700; /* Gold text */
+    color: #FFD700;
     font-weight: bold;
     cursor: pointer;
 }
 
+/* Dropdown menu */
 .dropdown-menu {
     position: absolute;
-    top: 100%; /* Align dropdown below the username */
+    top: 100%; /* Align dropdown below username */
     right: 0;
     background-color: #4B0082; /* Purple background */
     border: 1px solid #FFD700; /* Gold border */
@@ -108,7 +112,7 @@
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
     padding: 10px;
     z-index: 1000;
-    width: 200px; /* Set a fixed width for consistent appearance */
+    width: 200px; /* Fixed width for consistency */
 }
 
 .dropdown-menu button {
@@ -137,13 +141,13 @@
     }
 
     .nav-links {
-        flex-direction: column; /* Stack links vertically */
+        flex-direction: column;
         gap: 10px;
         margin-top: 10px;
     }
 
     .auth-buttons {
-        flex-direction: column; /* Stack buttons vertically */
+        flex-direction: column;
         gap: 10px;
         margin-top: 10px;
     }
@@ -152,4 +156,29 @@
         right: auto;
         left: 0; /* Align dropdown with username for smaller screens */
     }
+}
+
+/* Plus button container */
+.plus-button {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    width: 25px; /* Slightly larger */
+    height: 25px;
+    background-color: #FFD700; /* Gold background */
+    color: #4B0082; /* Purple text */
+    font-size: 18px;
+    font-weight: bold;
+    border-radius: 50%; /* Makes it a perfect circle */
+    cursor: pointer;
+    transition: transform 0.2s ease-in-out, background-color 0.2s ease-in-out;
+    text-align: center;
+    line-height: 1; /* Ensures text is centered properly */
+    border: 2px solid #FFD700; /* Ensures the button has a clear border */
+}
+
+/* Hover effect */
+.plus-button:hover {
+    transform: scale(1.2);
+    background-color: #FFC107; /* Slightly different yellow on hover */
 }

@@ -6,25 +6,33 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
 
   useEffect(() => {
-    // Simulate checking user login state (replace with actual API call if needed)
-    const loggedInUser = JSON.parse(sessionStorage.getItem('user'));
-    if (loggedInUser) {
-      setUser(loggedInUser);
+    const storedUser = sessionStorage.getItem('user');
+    if (storedUser) {
+      setUser(JSON.parse(storedUser));
     }
   }, []);
 
   const login = (userData) => {
     setUser(userData);
-    sessionStorage.setItem('user', JSON.stringify(userData)); 
+    sessionStorage.setItem('user', JSON.stringify(userData));
   };
 
   const logout = () => {
     setUser(null);
-    sessionStorage.removeItem('user'); 
+    sessionStorage.removeItem('user');
   };
 
+  const updateBalance = (newBalance) => {
+    if (user) {
+      const updatedUser = { ...user, balance: newBalance };
+      setUser(updatedUser); // ✅ Update user balance in state
+      sessionStorage.setItem('user', JSON.stringify(updatedUser)); // ✅ Store updated user in sessionStorage
+    }
+  };
+
+
   return (
-    <AuthContext.Provider value={{ user, login, logout }}>
+    <AuthContext.Provider value={{ user, login, logout, updateBalance }}>
       {children}
     </AuthContext.Provider>
   );

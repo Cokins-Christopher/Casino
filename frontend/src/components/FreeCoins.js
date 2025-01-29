@@ -1,14 +1,18 @@
 import React, { useState, useEffect, useContext } from 'react';
+import axios from 'axios';
 import { AuthContext } from '../context/AuthContext';
 import '../styles/FreeCoins.css';
 
 const FreeCoins = () => {
-  const { user } = useContext(AuthContext);
+  const { user, updateBalance } = useContext(AuthContext);
   const [hasSpun, setHasSpun] = useState(false);
   const [spinning, setSpinning] = useState(false);
   const [reward, setReward] = useState(null);
   const [rotation, setRotation] = useState(0);
   const [timeLeft, setTimeLeft] = useState(0);
+  const [errorMessage, setErrorMessage] = useState(null);
+
+  const API_BASE_URL = "http://127.0.0.1:8000/api";
 
   const prizes = [50, 100, 250, 500, 1000, 5000];
   const numSlices = prizes.length;
@@ -17,13 +21,13 @@ const FreeCoins = () => {
 
   useEffect(() => {
     if (user) {
-      fetch(`/api/last-spin/${user.id}`)
-        .then((res) => res.json())
-        .then((data) => {
-          if (data.lastSpinTime) {
-            const lastSpinTime = new Date(data.lastSpinTime);
+      axios.get(`${API_BASE_URL}/last-spin/${user.id}/`)
+        .then(response => {
+          const { lastSpinTime } = response.data;
+          if (lastSpinTime) {
+            const lastSpinDate = new Date(lastSpinTime);
             const now = new Date();
-            const timeDiff = now - lastSpinTime;
+            const timeDiff = now - lastSpinDate;
 
             if (timeDiff < 24 * 60 * 60 * 1000) {
               setHasSpun(true);
@@ -31,7 +35,10 @@ const FreeCoins = () => {
             }
           }
         })
-        .catch((err) => console.error("Error fetching last spin time:", err));
+        .catch(error => {
+          console.error("Error fetching last spin time:", error);
+          setErrorMessage("Failed to load spin data. Please try again later.");
+        });
     }
   }, [user]);
 
@@ -44,26 +51,37 @@ const FreeCoins = () => {
     }
   }, [hasSpun, timeLeft]);
 
-  const spinWheel = () => {
+  const spinWheel = async () => {
     if (!user || hasSpun || spinning) return;
-
+  
     setSpinning(true);
-
+    setErrorMessage(null);
+  
     const randomIndex = Math.floor(Math.random() * prizes.length);
     const targetRotation = (sliceAngle * (prizes.length - randomIndex - 1)) + (5 * 360) - offsetAngle;
-
+  
     setRotation(targetRotation);
-
-    setTimeout(() => {
-      setReward(prizes[randomIndex]);
-      setHasSpun(true);
+  
+    setTimeout(async () => {
+      try {
+        const response = await axios.post("http://127.0.0.1:8000/api/update-spin/", {
+          userId: user.id, // ✅ Ensure user ID is sent correctly
+          amount: prizes[randomIndex],
+        });
+  
+        const data = response.data;
+        console.log("✅ Spin response:", data); // Debugging log
+  
+        setReward(prizes[randomIndex]);
+        setHasSpun(true);
+        updateBalance(data.balance); // ✅ Update balance
+  
+      } catch (error) {
+        console.error("❌ Spin error:", error);
+        setErrorMessage(error.response?.data?.error || "An error occurred. Try again later.");
+      }
+  
       setSpinning(false);
-
-      fetch('/api/update-spin/', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: user.id, amount: prizes[randomIndex] }),
-      }).catch((err) => console.error('Error updating balance:', err));
     }, 3000);
   };
 
@@ -78,8 +96,8 @@ const FreeCoins = () => {
     <div className="free-coins-container">
       <h1>Spin the Wheel for Free Coins!</h1>
 
-      <div className="wheel-container" onClick={!hasSpun ? spinWheel : null}>
-        <div className="wheel" style={{ transform: `rotate(${rotation}deg)` }}>
+      <div className="wheel-container" onClick={!hasSpun && !spinning ? spinWheel : null}>
+        <div className="wheel" style={{ transform: `rotate(${rotation}deg)`, transition: spinning ? "3s ease-out" : "none" }}>
           {prizes.map((prize, index) => (
             <div key={index} className="wheel-segment" style={{ transform: `rotate(${sliceAngle * index}deg)` }}>
               <span className="wheel-text">{prize}</span>
@@ -90,6 +108,7 @@ const FreeCoins = () => {
       </div>
 
       {reward && <p className="reward-message">🎉 You won {reward} coins! 🎉</p>}
+      {errorMessage && <p className="error-message">{errorMessage}</p>}
       {hasSpun && <p className="cooldown-message">⏳ You can spin again in: {formatTime(timeLeft)}</p>}
     </div>
   );
