@@ -65,6 +65,10 @@ CSRF_TRUSTED_ORIGINS = [
 
 AUTH_USER_MODEL = 'app.CustomUser'
 
+SESSION_EXPIRE_AT_BROWSER_CLOSE = True
+
+SESSION_COOKIE_AGE = None  # Session cookies only
+
 
 ROOT_URLCONF = 'project.urls'
 

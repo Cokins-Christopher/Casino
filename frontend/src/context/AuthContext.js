@@ -7,7 +7,7 @@ export const AuthProvider = ({ children }) => {
 
   useEffect(() => {
     // Simulate checking user login state (replace with actual API call if needed)
-    const loggedInUser = JSON.parse(localStorage.getItem('user'));
+    const loggedInUser = JSON.parse(sessionStorage.getItem('user'));
     if (loggedInUser) {
       setUser(loggedInUser);
     }
@@ -15,12 +15,12 @@ export const AuthProvider = ({ children }) => {
 
   const login = (userData) => {
     setUser(userData);
-    localStorage.setItem('user', JSON.stringify(userData)); // Save to localStorage
+    sessionStorage.setItem('user', JSON.stringify(userData)); 
   };
 
   const logout = () => {
     setUser(null);
-    localStorage.removeItem('user'); // Clear user from localStorage
+    sessionStorage.removeItem('user'); 
   };
 
   return (
