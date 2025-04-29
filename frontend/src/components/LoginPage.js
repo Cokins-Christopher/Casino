@@ -11,10 +11,11 @@ const LoginPage = () => {
   const [errorMessage, setErrorMessage] = useState('');
   const navigate = useNavigate();
 
-  const API_BASE_URL = "http://127.0.0.1:8000/api"; // Ensure this matches Django backend
+  const API_BASE_URL = "http://127.0.0.1:8000/api";
 
   const handleLogin = async (event) => {
     event.preventDefault();
+    setErrorMessage('');
 
     try {
       const response = await axios.post(`${API_BASE_URL}/login/`, {
@@ -22,17 +23,28 @@ const LoginPage = () => {
         password,
       });
 
-      const userData = response.data;
+      const userData = {
+        id: response.data.id,
+        username: response.data.username,
+        email: response.data.email,
+        balance: response.data.balance
+      };
+      
+      const token = response.data.token;
 
-      // ✅ Store user in context and session storage
-      login(userData);
-      sessionStorage.setItem('user', JSON.stringify(userData));
+      if (!userData || !token) {
+        throw new Error('Invalid response from server');
+      }
 
-      // ✅ Redirect to home page
+      // Store user data and token
+      login(userData, token);
+
+      // Redirect to home page
       navigate('/');
 
     } catch (error) {
-      setErrorMessage("Invalid email or password. Please try again.");
+      console.error('Login error:', error);
+      setErrorMessage(error.response?.data?.error || "Invalid email or password. Please try again.");
     }
   };
 

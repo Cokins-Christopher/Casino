@@ -1,4 +1,5 @@
 import { createContext, useState, useEffect } from 'react';
+import axios from 'axios';
 
 export const AuthContext = createContext();
 
@@ -7,29 +8,46 @@ export const AuthProvider = ({ children }) => {
 
   useEffect(() => {
     const storedUser = sessionStorage.getItem('user');
-    if (storedUser) {
-      setUser(JSON.parse(storedUser));
+    const token = sessionStorage.getItem('token');
+    
+    if (storedUser && token) {
+      const userData = JSON.parse(storedUser);
+      // Ensure balance is stored as a number
+      if (userData.balance !== undefined) {
+        userData.balance = parseFloat(userData.balance);
+      }
+      setUser(userData);
+      axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
     }
   }, []);
 
-  const login = (userData) => {
+  const login = (userData, token) => {
+    // Ensure balance is stored as a number
+    if (userData.balance !== undefined) {
+      userData.balance = parseFloat(userData.balance);
+    }
     setUser(userData);
     sessionStorage.setItem('user', JSON.stringify(userData));
+    sessionStorage.setItem('token', token);
+    axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
   };
 
   const logout = () => {
     setUser(null);
     sessionStorage.removeItem('user');
+    sessionStorage.removeItem('token');
+    delete axios.defaults.headers.common['Authorization'];
   };
 
   const updateBalance = (newBalance) => {
     if (user) {
-      const updatedUser = { ...user, balance: newBalance };
-      setUser(updatedUser); // ✅ Update user balance in state
-      sessionStorage.setItem('user', JSON.stringify(updatedUser)); // ✅ Store updated user in sessionStorage
+      // Ensure balance is stored as a number
+      const numericBalance = parseFloat(newBalance);
+      const updatedUser = { ...user, balance: numericBalance };
+      setUser(updatedUser);
+      sessionStorage.setItem('user', JSON.stringify(updatedUser));
     }
   };
-
 
   return (
     <AuthContext.Provider value={{ user, login, logout, updateBalance }}>

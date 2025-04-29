@@ -1,4 +1,5 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import '../styles/Games.css';
 import blackjackImage from '../images/blackjack.png';
 import rouletteImage from '../images/roulette.png';
@@ -6,6 +7,8 @@ import slotsImage from '../images/slots.png';
 import pokerImage from '../images/poker.png';
 
 const Games = () => {
+  const navigate = useNavigate();
+  
   const games = [
     {
       name: 'Blackjack',
@@ -14,6 +17,7 @@ const Games = () => {
       maxBet: '$500',
       howToWin: 'Beat the dealer by getting closer to 21 without going over.',
       image: blackjackImage,
+      path: '/blackjack'
     },
     {
       name: 'Roulette',
@@ -22,6 +26,7 @@ const Games = () => {
       maxBet: '$1000',
       howToWin: 'Predict where the ball will land after the spin.',
       image: rouletteImage,
+      path: '/roulette'
     },
     {
       name: 'Slots',
@@ -30,6 +35,7 @@ const Games = () => {
       maxBet: '$100',
       howToWin: 'Match symbols across the reels to win payouts.',
       image: slotsImage,
+      path: '/slots'
     },
     {
       name: 'Video Poker',
@@ -38,15 +44,24 @@ const Games = () => {
       maxBet: '$200',
       howToWin: 'Create the best poker hand to win payouts.',
       image: pokerImage,
+      path: '/poker'
     },
   ];
+
+  const handleGameClick = (path) => {
+    navigate(path);
+  };
 
   return (
     <div className="games-container">
       <h1>Available Games</h1>
       <div className="games-grid">
         {games.map((game) => (
-          <div key={game.name} className="game-card">
+          <div 
+            key={game.name} 
+            className="game-card"
+            onClick={() => handleGameClick(game.path)}
+          >
             <img src={game.image} alt={game.name} className="game-image" />
             <h2 className="game-name">{game.name}</h2>
             <p className="game-description">{game.description}</p>

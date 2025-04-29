@@ -11,6 +11,7 @@ import FreeCoins from './components/FreeCoins'; // Import FreeCoins component
 import PurchaseCoins from './components/PurchaseCoins';
 import ViewStats from './components/ViewStats';
 import AccountInfo from './components/AccountInfo';
+import BlackjackGame from './components/BlackjackGame';
 
 function App() {
   return (
@@ -29,6 +30,7 @@ function App() {
             <Route path="/purchase-coins" element={<PurchaseCoins />} />
             <Route path="/view-stats" element={<ViewStats />} />
             <Route path="/account-info" element={<AccountInfo />} />
+            <Route path="/blackjack" element={<BlackjackGame />} />
           </Routes>
         </div>
       </Router>

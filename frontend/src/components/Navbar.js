@@ -37,6 +37,21 @@ const Navbar = () => {
     };
   }, [dropdownOpen]);
 
+  // Format balance as a fixed decimal number
+  const formatBalance = () => {
+    if (!user || user.balance === undefined || user.balance === null) {
+      return "0.00";
+    }
+    
+    // Ensure balance is a number
+    const balanceNum = parseFloat(user.balance);
+    if (isNaN(balanceNum)) {
+      return "0.00";
+    }
+    
+    return balanceNum.toFixed(2);
+  };
+
   return (
     <nav className="navbar">
       <div className="logo">
@@ -52,10 +67,10 @@ const Navbar = () => {
         {isAuthenticated ? (
           <div className="user-dropdown" ref={dropdownRef}>
             <div className="user-info">
-            <span className="balance">
-  Balance: ${user?.balance ? user.balance.toFixed(2) : "0.00"}
-  <span className="plus-button" onClick={() => navigate('/purchase-coins')}>+</span>
-</span>
+              <span className="balance">
+                Balance: ${formatBalance()}
+                <span className="plus-button" onClick={() => navigate('/purchase-coins')}>+</span>
+              </span>
               <span className="username" onClick={() => setDropdownOpen(!dropdownOpen)}>
                 Welcome, {user?.username}
               </span>
