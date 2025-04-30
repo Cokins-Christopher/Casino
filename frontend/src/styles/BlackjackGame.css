@@ -129,6 +129,13 @@
   box-shadow: 0 0 15px rgba(255, 215, 0, 0.5);
 }
 
+/* Style for busted hands */
+.player-hand.busted-hand {
+  background-color: rgba(120, 20, 20, 0.6);
+  border-color: #FF5555;
+  box-shadow: 0 0 20px rgba(255, 0, 0, 0.6);
+}
+
 .player-hand h2 {
   display: flex;
   justify-content: space-between;
@@ -284,4 +291,104 @@
     flex: 1 1 45%;
     min-width: 120px;
   }
+}
+
+/* Add highlight for newly drawn card */
+.card.highlight-card {
+  transform: scale(1.1);
+  box-shadow: 0 0 15px 5px gold;
+  z-index: 10;
+  transition: all 0.3s ease;
+}
+
+/* Bust card styling */
+.card.bust-card {
+  box-shadow: 0 0 30px 15px rgba(255, 0, 0, 0.9) !important;
+  animation: shake 0.6s ease-in-out forwards, pulse 1.5s ease-in-out infinite !important;
+  z-index: 100 !important;
+  transform: scale(1.15) !important;
+  position: relative !important;
+  border: 3px solid red !important;
+  background-color: #ffcccc !important;  /* Light red background */
+}
+
+/* Bust indicator */
+.bust-indicator {
+  position: absolute !important;
+  top: 50% !important;
+  left: 50% !important;
+  transform: translate(-50%, -50%) rotate(-15deg) !important;
+  background-color: red !important;
+  color: white !important;
+  font-weight: bold !important;
+  font-size: 26px !important;
+  padding: 10px 15px !important;
+  border-radius: 5px !important;
+  z-index: 200 !important;
+  text-shadow: 2px 2px 4px black !important;
+  box-shadow: 0 0 15px rgba(0, 0, 0, 0.7) !important;
+  animation: popup 0.5s ease-out !important;
+  white-space: nowrap !important;
+  letter-spacing: 1px !important;
+  border: 2px solid white !important;
+  user-select: none !important;
+  pointer-events: none !important;
+}
+
+/* Shake animation for bust card */
+@keyframes shake {
+  0%, 100% { transform: translateX(0) scale(1.15); }
+  10%, 30%, 50%, 70%, 90% { transform: translateX(-8px) rotate(-2deg) scale(1.15); }
+  20%, 40%, 60%, 80% { transform: translateX(8px) rotate(2deg) scale(1.15); }
+}
+
+/* Pulse animation for continuing emphasis */
+@keyframes pulse {
+  0%, 100% { box-shadow: 0 0 30px 15px rgba(255, 0, 0, 0.9); }
+  50% { box-shadow: 0 0 20px 10px rgba(255, 0, 0, 0.5); }
+}
+
+/* Popup animation for bust indicator */
+@keyframes popup {
+  0% { transform: translate(-50%, -50%) scale(0); opacity: 0; }
+  80% { transform: translate(-50%, -50%) scale(1.2); opacity: 1; }
+  100% { transform: translate(-50%, -50%) scale(1) rotate(-15deg); opacity: 1; }
+}
+
+/* Subtle bust card styling */
+.card.subtle-bust-card {
+  border: 2px solid #ff6666;
+  background-color: #fff8f8;
+  position: relative;
+}
+
+/* Subtle bust indicator */
+.subtle-bust-indicator {
+  position: absolute;
+  bottom: 5px;
+  right: 5px;
+  background-color: rgba(255, 102, 102, 0.8);
+  color: white;
+  font-size: 12px;
+  padding: 2px 5px;
+  border-radius: 3px;
+  font-weight: bold;
+}
+
+/* Add a new style for the dealer message */
+.dealer-message {
+  margin: 20px 0;
+  padding: 15px;
+  background-color: #2E0854;
+  border: 2px solid #FFD700;
+  border-radius: 8px;
+  font-size: 18px;
+  color: #FFD700;
+  text-align: center;
+  animation: pulse-subtle 1.5s infinite;
+}
+
+@keyframes pulse-subtle {
+  0%, 100% { opacity: 0.8; }
+  50% { opacity: 1; }
 } 

@@ -260,7 +260,37 @@ def verify_password(request):
             return JsonResponse({"error": "User not found"}, status=404)
     return JsonResponse({"error": "Invalid request method"}, status=405)
 
+@csrf_exempt
+def update_balance(request):
+    if request.method == "POST":
+        try:
+            data = json.loads(request.body)
+            user_id = data.get("user_id")
+            new_balance = data.get("new_balance")
 
+            if not user_id or new_balance is None:
+                return JsonResponse({"error": "User ID and new balance are required"}, status=400)
+
+            # Find the user
+            user = CustomUser.objects.get(id=user_id)
+            
+            # Update the balance
+            user.balance = new_balance
+            user.save()
+
+            return JsonResponse({
+                "message": "Balance updated successfully",
+                "user_id": user_id,
+                "new_balance": float(user.balance)
+            })
+        except CustomUser.DoesNotExist:
+            return JsonResponse({"error": "User not found"}, status=404)
+        except json.JSONDecodeError:
+            return JsonResponse({"error": "Invalid JSON format"}, status=400)
+        except Exception as e:
+            return JsonResponse({"error": str(e)}, status=500)
+    
+    return JsonResponse({"error": "Invalid request method"}, status=405)
 
 @csrf_exempt
 def start_blackjack(request):
@@ -317,17 +347,23 @@ def blackjack_action(request):
     current_hand = data.get("hand", "main")  # Get the current hand being played
     process_dealer_flag = data.get("process_dealer", False)  # Check if explicit process_dealer flag is set
 
+    print(f"🔁 Backend /blackjack_action called: {action}")
+    print(f"User ID: {user_id}, Hand: {current_hand}, Process dealer: {process_dealer_flag}")
+    print(f"Request data: {data}")
+
     if not user_id:
         return JsonResponse({"error": "User not logged in"}, status=401)
 
     try:
         user = CustomUser.objects.get(id=user_id)
         game = BlackjackGame.objects.filter(user=user).latest("created_at")
+        print(f"Found game ID: {game.id}")
 
         # If process_dealer flag is explicitly set, go straight to dealer processing
         if process_dealer_flag and action == 'stand':
             # Store the user_id in the request session for the process_dealer function
             request.session["current_user_id"] = user.id
+            print("Redirecting to process_dealer")
             return process_dealer(request)
 
         deck = game.deck
@@ -335,41 +371,61 @@ def blackjack_action(request):
         dealer_hand = game.dealer_hand
         bets = game.bets
         
+        print(f"Current game state: deck: {len(deck)} cards, player_hands: {player_hands}, dealer_hand: {dealer_hand}, bets: {bets}")
+        
         # Update current spot in the game
         game.current_spot = current_hand
         
         # Check if the specified hand exists
         if current_hand not in player_hands:
+            print(f"❌ Hand {current_hand} not found in {list(player_hands.keys())}")
             return JsonResponse({"error": f"Hand {current_hand} not found"}, status=400)
         
         # Get the current hand
         current_hand_cards = player_hands[current_hand]
+        print(f"Current hand cards: {current_hand_cards}")
+        print(f"Current hand value: {calculate_hand_value(current_hand_cards)}")
 
         if action == "hit":
+            print("🔁 Processing hit action")
             # Add a card to the current hand
-            player_hands[current_hand].append(deck.pop())
+            new_card = deck.pop()
+            player_hands[current_hand].append(new_card)
+            print(f"Drew card: {new_card}")
+            print(f"Updated hand: {player_hands[current_hand]}")
+            print(f"New hand value: {calculate_hand_value(player_hands[current_hand])}")
 
         elif action == "stand":
+            print("🔁 Processing stand action")
             # Stand on current hand, move to next or dealer
             pass  # No changes to hands needed, frontend will handle moving to next hand
 
         elif action == "double":
+            print("🔁 Processing double action")
             # Check if we can double (only with 2 cards)
             if len(current_hand_cards) != 2:
+                print(f"❌ Double rejected. Hand has {len(current_hand_cards)} cards instead of 2.")
                 return JsonResponse({"error": "Can only double on initial two cards."}, status=400)
                 
             # Check if player has enough balance
             if user.balance < bets[current_hand]:
+                print(f"❌ Double rejected. Insufficient balance: {user.balance} < {bets[current_hand]}")
                 return JsonResponse({"error": "Insufficient balance."}, status=400)
 
             # Double the bet and take exactly one card
             user.balance -= bets[current_hand]
             user.save()
             bets[current_hand] *= 2
-            player_hands[current_hand].append(deck.pop())
+            new_card = deck.pop()
+            player_hands[current_hand].append(new_card)
+            print(f"Double successful. Drew card: {new_card}")
+            print(f"Updated hand: {player_hands[current_hand]}")
+            print(f"New hand value: {calculate_hand_value(player_hands[current_hand])}")
+            print(f"New bet amount: {bets[current_hand]}")
             
             # If this is the last hand, process dealer immediately
             is_last_hand = current_hand == list(player_hands.keys())[-1]
+            print(f"Is last hand: {is_last_hand}")
             
             if is_last_hand:
                 # Update game state first
@@ -377,19 +433,24 @@ def blackjack_action(request):
                 game.player_hands = player_hands
                 game.bets = bets
                 game.save()
+                print("Game state saved before processing dealer")
                 
                 # Process dealer
                 request.session["current_user_id"] = user.id
+                print("Redirecting to process_dealer after double")
                 return process_dealer(request)
 
         elif action == "split":
+            print("🔁 Processing split action")
             # Check if hand has exactly 2 cards of the same rank
             if (len(current_hand_cards) != 2 or 
                 current_hand_cards[0]["rank"] != current_hand_cards[1]["rank"]):
+                print(f"❌ Split rejected. Hand: {current_hand_cards}")
                 return JsonResponse({"error": "Cannot split this hand."}, status=400)
 
             # Check if player has enough balance for the additional bet
             if user.balance < bets[current_hand]:
+                print(f"❌ Split rejected. Insufficient balance: {user.balance} < {bets[current_hand]}")
                 return JsonResponse({"error": "Insufficient balance."}, status=400)
 
             # Deduct the additional bet
@@ -404,22 +465,30 @@ def blackjack_action(request):
                 count += 1
                 split_hand_key = f"split_{current_hand}_{count}"
 
+            print(f"New split hand key: {split_hand_key}")
+
             # Create two new hands with one card each
             card1 = player_hands[current_hand].pop()
             card2 = player_hands[current_hand].pop()
             
             # Deal a new card to each hand
-            player_hands[current_hand] = [card1, deck.pop()]
-            player_hands[split_hand_key] = [card2, deck.pop()]
+            first_new_card = deck.pop()
+            second_new_card = deck.pop()
+            player_hands[current_hand] = [card1, first_new_card]
+            player_hands[split_hand_key] = [card2, second_new_card]
+            print(f"First hand: {player_hands[current_hand]}, value: {calculate_hand_value(player_hands[current_hand])}")
+            print(f"Second hand: {player_hands[split_hand_key]}, value: {calculate_hand_value(player_hands[split_hand_key])}")
             
             # Add the bet for the new hand
             bets[split_hand_key] = bets[current_hand]
+            print(f"New bets structure: {bets}")
 
         # Update game state
         game.deck = deck
         game.player_hands = player_hands
         game.bets = bets
         game.save()
+        print("Game state saved after action")
 
         # Check if we need to process dealer
         all_busted = True
@@ -429,9 +498,11 @@ def blackjack_action(request):
                 all_busted = False
                 break
         
+        print(f"All hands busted: {all_busted}")
         if all_busted and action != "stand":
             # If all hands are busted, proceed to dealer directly
             request.session["current_user_id"] = user.id
+            print("All hands busted - redirecting to process_dealer")
             dealer_result = process_dealer(request)
             return dealer_result
         
@@ -442,6 +513,11 @@ def blackjack_action(request):
         })
 
     except CustomUser.DoesNotExist:
+        print(f"❌ User not found: {user_id}")
         return JsonResponse({"error": "User not found"}, status=404)
     except BlackjackGame.DoesNotExist:
+        print(f"❌ No active game found for user: {user_id}")
         return JsonResponse({"error": "No active game found"}, status=400)
+    except Exception as e:
+        print(f"❌ Unexpected error in blackjack_action: {str(e)}")
+        return JsonResponse({"error": f"Unexpected error: {str(e)}"}, status=500)
