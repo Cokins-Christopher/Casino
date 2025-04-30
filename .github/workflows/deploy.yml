@@ -1,0 +1,105 @@
+name: Casino Deployment
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    needs: [] # No direct needs here, we'll use a conditional to ensure CI passes
+    if: ${{ success() }}
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '18'
+        cache: 'npm'
+        cache-dependency-path: 'frontend/package-lock.json'
+        
+    - name: Install and build frontend
+      run: |
+        cd frontend
+        npm ci
+        npm run build
+        
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.12'
+        cache: 'pipenv'
+        
+    - name: Install pipenv and dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install pipenv
+        pipenv install
+        
+    - name: Collect static files
+      run: |
+        cd project
+        pipenv run python manage.py collectstatic --noinput
+        
+    - name: Deploy to AWS Elastic Beanstalk
+      uses: einaregilsson/beanstalk-deploy@v21
+      with:
+        aws_access_key: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws_secret_key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        application_name: casino-app
+        environment_name: production
+        version_label: "casino-${{ github.sha }}"
+        region: us-east-1
+        deployment_package: deploy.zip
+      env:
+        AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        
+    - name: Run database migrations
+      env:
+        DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        SECRET_KEY: ${{ secrets.SECRET_KEY }}
+      run: |
+        # Set up SSH to connect to production server using SSH key
+        mkdir -p ~/.ssh
+        echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+        chmod 600 ~/.ssh/id_rsa
+        ssh-keyscan -H ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts
+        
+        # Run migrations remotely
+        ssh ${{ secrets.SSH_USER }}@${{ secrets.SERVER_HOST }} "cd /path/to/app && source .env && python manage.py migrate --noinput"
+      
+    - name: Create deployment zip
+      run: |
+        # Create a deployment package with all necessary files
+        mkdir -p deploy
+        cp -r project deploy/
+        cp -r frontend/build deploy/frontend_static
+        cp Pipfile Pipfile.lock deploy/
+        
+        # Create Procfile for Elastic Beanstalk
+        echo "web: cd project && pipenv run gunicorn project.wsgi --log-file -" > deploy/Procfile
+        
+        # Zip everything for deployment
+        cd deploy && zip -r ../deploy.zip .
+      
+    - name: Notify deployment status
+      uses: rtCamp/action-slack-notify@v2
+      env:
+        SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
+        SLACK_CHANNEL: deployments
+        SLACK_TITLE: Production Deployment
+        SLACK_MESSAGE: "Casino app has been deployed to production! 🎲"
+        SLACK_COLOR: ${{ job.status }}
+        
+    - name: Verify deployment
+      run: |
+        # Wait for deployment to stabilize
+        sleep 30
+        
+        # Ping the site to ensure it's up
+        curl -sSf ${{ secrets.PRODUCTION_URL }} || (echo "Site is not responding" && exit 1)
+        
+        echo "Deployment successful! Site is up and running." 

@@ -15,9 +15,29 @@ def create_deck():
 
 # Calculate hand value (handling Aces as 1 or 11)
 def calculate_hand_value(hand):
-    value = sum(card["value"] for card in hand)
-    aces = sum(1 for card in hand if card["rank"] == "A")
+    value = 0
+    aces = 0
+    
+    for card in hand:
+        # Check if card is a string (e.g., '2H', 'JD', 'AC') or a dict
+        if isinstance(card, str):
+            # Extract the card rank (first character for most cards, except for '10')
+            if card.startswith('10'):
+                rank = '10'
+            else:
+                rank = card[0]
+                
+            if rank == 'A':
+                aces += 1
+                
+            value += CARD_VALUES[rank]
+        else:
+            # Card is a dict with "value" key
+            value += card["value"]
+            if card.get("rank") == "A":
+                aces += 1
 
+    # Handle aces
     while value > 21 and aces:
         value -= 10  # Convert Ace from 11 to 1
         aces -= 1

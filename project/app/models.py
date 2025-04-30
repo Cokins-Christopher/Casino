@@ -17,12 +17,35 @@ class Transaction(models.Model):
     TRANSACTION_TYPES = [
         ("win", "Win"),
         ("purchase", "Purchase"),
+        ("loss", "Loss"),
+        ("deposit", "Deposit"),
+        ("withdrawal", "Withdrawal"),
+    ]
+    
+    PAYMENT_METHODS = [
+        ("credit_card", "Credit Card"),
+        ("bank_transfer", "Bank Transfer"),
+        ("crypto", "Cryptocurrency"),
+        ("in_game", "In-Game"),
+    ]
+    
+    TRANSACTION_STATUS = [
+        ("pending", "Pending"),
+        ("completed", "Completed"),
+        ("failed", "Failed"),
     ]
 
     user = models.ForeignKey(CustomUser, on_delete=models.CASCADE)
     amount = models.DecimalField(max_digits=10, decimal_places=2)
-    transaction_type = models.CharField(max_length=10, choices=TRANSACTION_TYPES, default="win")  # ✅ Set default
+    transaction_type = models.CharField(max_length=10, choices=TRANSACTION_TYPES, default="win")
+    payment_method = models.CharField(max_length=20, choices=PAYMENT_METHODS, null=True, blank=True)
     timestamp = models.DateTimeField(auto_now_add=True)
+    game_id = models.CharField(max_length=50, null=True, blank=True)
+    game_type = models.CharField(max_length=20, null=True, blank=True)
+    status = models.CharField(max_length=20, choices=TRANSACTION_STATUS, default="completed")
+    
+    def __str__(self):
+        return f"Transaction {self.id}: {self.user.username} - {self.amount} ({self.transaction_type})"
 
     @staticmethod
     def get_top_winners(period):
@@ -38,7 +61,6 @@ class Transaction(models.Model):
             .annotate(total_winnings=Sum("amount"))
             .order_by("-total_winnings")[:10]  # ✅ Get top 10 winners
         )
-    
 
 class BlackjackGame(models.Model):
     user = models.ForeignKey(CustomUser, on_delete=models.CASCADE)
