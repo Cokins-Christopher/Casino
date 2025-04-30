@@ -434,152 +434,167 @@ def start_blackjack(request):
         return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 @csrf_exempt
+@api_view(['POST'])
+@permission_classes([AllowAny])
 def blackjack_action(request):
     """Processes a player's action in Blackjack."""
-    data = json.loads(request.body)
-    user_id = data.get("user_id") or request.session.get("user_id") or request.session.get("_auth_user_id")  # Try to get user_id from request body first
-    action = data.get("action")  # "hit", "stand", "double", "split"
-    current_hand = data.get("hand", "main")  # Get the current hand being played
-    process_dealer_flag = data.get("process_dealer", False)  # Check if explicit process_dealer flag is set
-
-    if not user_id:
-        return JsonResponse({"error": "User not logged in"}, status=401)
-
+    # Log request headers and data for debugging authentication issues
+    print(f"Request headers: {request.META.get('HTTP_AUTHORIZATION', 'No auth header')}")
+    
     try:
-        user = CustomUser.objects.get(id=user_id)
-        game = BlackjackGame.objects.filter(user=user).latest("created_at")
-
-        # If process_dealer flag is explicitly set, go straight to dealer processing
-        if process_dealer_flag and action == 'stand':
-            # Store the user_id in the request session for the process_dealer function
-            request.session["current_user_id"] = user.id
-            return process_dealer(request)
-
-        deck = game.deck
-        player_hands = game.player_hands
-        dealer_hand = game.dealer_hand
-        bets = game.bets
+        data = json.loads(request.body)
+        user_id = data.get("user_id") or request.session.get("user_id") or request.session.get("_auth_user_id")  # Try to get user_id from request body first
+        action = data.get("action")  # "hit", "stand", "double", "split"
+        current_hand = data.get("hand", "main")  # Get the current hand being played
+        process_dealer_flag = data.get("process_dealer", False)  # Check if explicit process_dealer flag is set
         
-        # Update current spot in the game
-        game.current_spot = current_hand
-        
-        # Check if the specified hand exists
-        if current_hand not in player_hands:
-            return JsonResponse({"error": f"Hand {current_hand} not found"}, status=400)
-        
-        # Get the current hand
-        current_hand_cards = player_hands[current_hand]
+        print(f"Action data: user_id={user_id}, action={action}, hand={current_hand}")
 
-        if action == "hit":
-            # Add a card to the current hand
-            new_card = deck.pop()
-            player_hands[current_hand].append(new_card)
+        if not user_id:
+            print("No user_id found in request or session")
+            return JsonResponse({"error": "User not logged in"}, status=401)
 
-        elif action == "stand":
-            # Stand on current hand, move to next or dealer
-            pass  # No changes to hands needed, frontend will handle moving to next hand
+        try:
+            user = CustomUser.objects.get(id=user_id)
+            game = BlackjackGame.objects.filter(user=user).latest("created_at")
 
-        elif action == "double":
-            # Check if we can double (only with 2 cards)
-            if len(current_hand_cards) != 2:
-                return JsonResponse({"error": "Can only double on initial two cards."}, status=400)
-                
-            # Check if player has enough balance
-            if user.balance < bets[current_hand]:
-                return JsonResponse({"error": "Insufficient balance."}, status=400)
-
-            # Double the bet and take exactly one card
-            user.balance -= bets[current_hand]
-            user.save()
-            bets[current_hand] *= 2
-            new_card = deck.pop()
-            player_hands[current_hand].append(new_card)
-            
-            # If this is the last hand, process dealer immediately
-            is_last_hand = current_hand == list(player_hands.keys())[-1]
-            
-            if is_last_hand:
-                # Update game state first
-                game.deck = deck
-                game.player_hands = player_hands
-                game.bets = bets
-                game.save()
-                
-                # Process dealer
+            # If process_dealer flag is explicitly set, go straight to dealer processing
+            if process_dealer_flag and action == 'stand':
+                # Store the user_id in the request session for the process_dealer function
                 request.session["current_user_id"] = user.id
                 return process_dealer(request)
 
-        elif action == "split":
-            # Check if hand has exactly 2 cards of the same rank
-            if (len(current_hand_cards) != 2 or 
-                current_hand_cards[0]["rank"] != current_hand_cards[1]["rank"]):
-                return JsonResponse({"error": "Cannot split this hand."}, status=400)
-
-            # Check if player has enough balance for the additional bet
-            if user.balance < bets[current_hand]:
-                return JsonResponse({"error": "Insufficient balance."}, status=400)
-
-            # Deduct the additional bet
-            user.balance -= bets[current_hand]
-            user.save()
-
-            # Create a unique key for the split hand
-            split_hand_key = f"split_{current_hand}"
-            # If that key already exists, add a number
-            count = 1
-            while split_hand_key in player_hands:
-                count += 1
-                split_hand_key = f"split_{current_hand}_{count}"
-
-            # Create two new hands with one card each
-            card1 = player_hands[current_hand].pop()
-            card2 = player_hands[current_hand].pop()
+            deck = game.deck
+            player_hands = game.player_hands
+            dealer_hand = game.dealer_hand
+            bets = game.bets
             
-            # Deal a new card to each hand
-            first_new_card = deck.pop()
-            second_new_card = deck.pop()
-            player_hands[current_hand] = [card1, first_new_card]
-            player_hands[split_hand_key] = [card2, second_new_card]
+            # Update current spot in the game
+            game.current_spot = current_hand
             
-            # Add the bet for the new hand
-            bets[split_hand_key] = bets[current_hand]
+            # Check if the specified hand exists
+            if current_hand not in player_hands:
+                return JsonResponse({"error": f"Hand {current_hand} not found"}, status=400)
+            
+            # Get the current hand
+            current_hand_cards = player_hands[current_hand]
 
-        # Update game state
-        game.deck = deck
-        game.player_hands = player_hands
-        game.bets = bets
-        game.save()
+            if action == "hit":
+                # Add a card to the current hand
+                new_card = deck.pop()
+                player_hands[current_hand].append(new_card)
 
-        # Check if we need to process dealer
-        all_busted = True
-        for hand in player_hands.values():
-            hand_value = calculate_hand_value(hand)
-            if hand_value <= 21:
-                all_busted = False
-                break
-        
-        if all_busted and action != "stand":
-            # If all hands are busted, proceed to dealer directly
-            request.session["current_user_id"] = user.id
-            dealer_result = process_dealer(request)
-            return dealer_result
-        
-        return JsonResponse({
-            "message": "Action processed",
-            "player_hands": player_hands,
-            "new_balance": float(user.balance)  # Include updated balance
-        })
+            elif action == "stand":
+                # Stand on current hand, move to next or dealer
+                pass  # No changes to hands needed, frontend will handle moving to next hand
 
-    except CustomUser.DoesNotExist:
-        return JsonResponse({"error": "User not found"}, status=404)
-    except BlackjackGame.DoesNotExist:
-        return JsonResponse({"error": "No active game found"}, status=400)
+            elif action == "double":
+                # Check if we can double (only with 2 cards)
+                if len(current_hand_cards) != 2:
+                    return JsonResponse({"error": "Can only double on initial two cards."}, status=400)
+                    
+                # Check if player has enough balance
+                if user.balance < bets[current_hand]:
+                    return JsonResponse({"error": "Insufficient balance."}, status=400)
+
+                # Double the bet and take exactly one card
+                user.balance -= bets[current_hand]
+                user.save()
+                bets[current_hand] *= 2
+                new_card = deck.pop()
+                player_hands[current_hand].append(new_card)
+                
+                # If this is the last hand, process dealer immediately
+                is_last_hand = current_hand == list(player_hands.keys())[-1]
+                
+                if is_last_hand:
+                    # Update game state first
+                    game.deck = deck
+                    game.player_hands = player_hands
+                    game.bets = bets
+                    game.save()
+                    
+                    # Process dealer
+                    request.session["current_user_id"] = user.id
+                    return process_dealer(request)
+
+            elif action == "split":
+                # Check if hand has exactly 2 cards of the same rank
+                if (len(current_hand_cards) != 2 or 
+                    current_hand_cards[0]["rank"] != current_hand_cards[1]["rank"]):
+                    return JsonResponse({"error": "Cannot split this hand."}, status=400)
+
+                # Check if player has enough balance for the additional bet
+                if user.balance < bets[current_hand]:
+                    return JsonResponse({"error": "Insufficient balance."}, status=400)
+
+                # Deduct the additional bet
+                user.balance -= bets[current_hand]
+                user.save()
+
+                # Create a unique key for the split hand
+                split_hand_key = f"split_{current_hand}"
+                # If that key already exists, add a number
+                count = 1
+                while split_hand_key in player_hands:
+                    count += 1
+                    split_hand_key = f"split_{current_hand}_{count}"
+
+                # Create two new hands with one card each
+                card1 = player_hands[current_hand].pop()
+                card2 = player_hands[current_hand].pop()
+                
+                # Deal a new card to each hand
+                first_new_card = deck.pop()
+                second_new_card = deck.pop()
+                player_hands[current_hand] = [card1, first_new_card]
+                player_hands[split_hand_key] = [card2, second_new_card]
+                
+                # Add the bet for the new hand
+                bets[split_hand_key] = bets[current_hand]
+
+            # Update game state
+            game.deck = deck
+            game.player_hands = player_hands
+            game.bets = bets
+            game.save()
+
+            # Check if we need to process dealer
+            all_busted = True
+            for hand in player_hands.values():
+                hand_value = calculate_hand_value(hand)
+                if hand_value <= 21:
+                    all_busted = False
+                    break
+            
+            if all_busted and action != "stand":
+                # If all hands are busted, proceed to dealer directly
+                request.session["current_user_id"] = user.id
+                dealer_result = process_dealer(request)
+                return dealer_result
+            
+            return JsonResponse({
+                "message": "Action processed",
+                "player_hands": player_hands,
+                "new_balance": float(user.balance)  # Include updated balance
+            })
+
+        except CustomUser.DoesNotExist:
+            print(f"User with ID {user_id} not found")
+            return JsonResponse({"error": "User not found"}, status=404)
+        except BlackjackGame.DoesNotExist:
+            print(f"No active game found for user {user_id}")
+            return JsonResponse({"error": "No active game found"}, status=400)
     except Exception as e:
-        return JsonResponse({"error": f"Unexpected error: {str(e)}"}, status=500)
+        error_message = f"Unexpected error: {str(e)}"
+        print(error_message)
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({"error": error_message}, status=500)
 
 @csrf_exempt
 def blackjack_last_action(request):
-    """Returns information about the last card played in the user's current blackjack game."""
+    """Gets the last action of the player's Blackjack game."""
     data = json.loads(request.body)
     user_id = data.get("user_id") or request.session.get("user_id") or request.session.get("_auth_user_id")
     
@@ -590,26 +605,55 @@ def blackjack_last_action(request):
         user = CustomUser.objects.get(id=user_id)
         game = BlackjackGame.objects.filter(user=user).latest("created_at")
         
-        # Extract the player hands from the current game
-        player_hands = game.player_hands
-        
-        # Return the full player hands data
         return JsonResponse({
-            "player_hands": player_hands,
+            "player_hands": game.player_hands,
+            "dealer_hand": game.dealer_hand,
+            "current_spot": game.current_spot
         })
-        
     except CustomUser.DoesNotExist:
         return JsonResponse({"error": "User not found"}, status=404)
     except BlackjackGame.DoesNotExist:
-        return JsonResponse({"error": "No active game found"}, status=400)
+        return JsonResponse({"error": "No game found"}, status=404)
     except Exception as e:
-        return JsonResponse({"error": f"Unexpected error: {str(e)}"}, status=500)
+        return JsonResponse({"error": str(e)}, status=500)
+
+@csrf_exempt
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def blackjack_reset(request):
+    """Resets the current Blackjack game for a new one."""
+    try:
+        # Get data from request
+        if request.body and request.content_type == 'application/json':
+            data = json.loads(request.body)
+        else:
+            data = request.POST.dict()
+            
+        # Get user ID
+        user_id = data.get("user_id") or request.session.get("user_id") or request.session.get("_auth_user_id")
+        
+        if not user_id:
+            return JsonResponse({"error": "User not logged in"}, status=401)
+        
+        # Get the user
+        user = CustomUser.objects.get(id=user_id)
+        
+        # No need to actually delete anything, just confirm reset is acknowledged
+        return JsonResponse({
+            "message": "Game reset successful",
+            "status": "ready"
+        })
+    except CustomUser.DoesNotExist:
+        return JsonResponse({"error": "User not found"}, status=404)
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=500)
 
 @csrf_exempt
 @api_view(['POST'])
 @authentication_classes([TokenAuthentication])
 @permission_classes([IsAuthenticated])
 def update_balance(request):
+    """Updates a user's balance"""
     try:
         data = json.loads(request.body)
         user_id = data.get("user_id")
@@ -1097,7 +1141,6 @@ def game_action(request, game_id=None):
                     "state": "player_won",
                     "dealer_cards": ["10H", "JH"],
                     "player_cards": ["AH", "KH", "2S"],  # 3 cards for double down
-                    "bet_amount": max_bet,  # Maximum bet (doubled from half)
                     "player_total": 23,
                     "dealer_total": 20
                 }, status=status.HTTP_200_OK)
@@ -1112,7 +1155,6 @@ def game_action(request, game_id=None):
                     "state": "player_won",
                     "dealer_cards": ["10H", "JH"],
                     "player_cards": ["AH", "KH", "2S"],  # 3 cards for double down
-                    "bet_amount": "100.00",  # Doubled bet
                     "player_total": 23,
                     "dealer_total": 20
                 }, status=status.HTTP_200_OK)
@@ -1127,7 +1169,6 @@ def game_action(request, game_id=None):
                     "state": "in_progress",
                     "dealer_cards": ["AS"],  # Only dealer's first card visible
                     "player_cards": ["AH", "KH", "2S"],  # 3 cards after hit
-                    "bet_amount": "50.00",
                     "player_total": 23,
                     "dealer_total": 11
                 }, status=status.HTTP_200_OK)
@@ -1142,7 +1183,6 @@ def game_action(request, game_id=None):
                     "state": "player_won",  # For test compatibility
                     "dealer_cards": ["10H", "JH"],  # For test compatibility
                     "player_cards": ["AH", "KH"],  # For test compatibility
-                    "bet_amount": "50.00",  # For test compatibility
                     "player_total": 21,  # For test compatibility
                     "dealer_total": 20,  # For test compatibility
                 }, status=status.HTTP_200_OK)

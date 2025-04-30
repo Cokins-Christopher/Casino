@@ -29,8 +29,46 @@ const BlackjackGame = () => {
     const token = sessionStorage.getItem('token');
     if (token) {
       axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+      console.log("Setting auth token:", token);
     }
-  }, []);
+    
+    // Add a request interceptor to ensure the token is always set
+    axios.interceptors.request.use(
+      config => {
+        // Always check for the token before each request
+        const currentToken = sessionStorage.getItem('token');
+        if (currentToken) {
+          config.headers.Authorization = `Bearer ${currentToken}`;
+        }
+        return config;
+      },
+      error => {
+        return Promise.reject(error);
+      }
+    );
+    
+    // Add a response interceptor to handle authentication errors
+    axios.interceptors.response.use(
+      response => {
+        return response;
+      },
+      error => {
+        // Handle 401 Unauthorized errors
+        if (error.response && error.response.status === 401) {
+          console.error("Authentication error:", error.response.data);
+          // Clear session storage and redirect to login if needed
+          if (window.location.pathname !== '/login') {
+            setError('Please log in to continue');
+            // Avoid immediate redirect to prevent loops
+            setTimeout(() => {
+              navigate('/login');
+            }, 1000);
+          }
+        }
+        return Promise.reject(error);
+      }
+    );
+  }, [navigate]);
 
   // Initialize balance from user context
   useEffect(() => {
@@ -66,29 +104,62 @@ const BlackjackGame = () => {
     }
 
     try {
+      // Get the token from session storage
+      const token = sessionStorage.getItem('token');
+      
       const response = await axios.post(`${API_BASE_URL}/blackjack/start/`, {
         user_id: user.id,
         bets: { main: betAmount }
+      }, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
       });
 
-      const { player_hands, dealer_hand } = response.data;
+      console.log("Game start response:", response.data);
       
-      if (!player_hands || !player_hands.main) {
-        throw new Error('Invalid game data received');
+      // Handle the player_hands with potentially nested arrays
+      let processedPlayerHands = {};
+      
+      if (response.data.player_hands) {
+        // Process player hands - flatten nested arrays
+        Object.entries(response.data.player_hands).forEach(([handKey, handCards]) => {
+          // Check if we got an array of arrays (typical backend format)
+          if (Array.isArray(handCards) && handCards.length > 0 && Array.isArray(handCards[0])) {
+            // Flatten one level
+            processedPlayerHands[handKey] = handCards.flat();
+          } else {
+            // Already flat or other format
+            processedPlayerHands[handKey] = handCards;
+          }
+        });
+        
+        console.log("Processed player hands:", processedPlayerHands);
+      } else {
+        setError('No player hands received from server');
+        return;
       }
       
-      setPlayerHands(player_hands);
+      // Set the processed player hands
+      setPlayerHands(processedPlayerHands);
       setCurrentHand('main');
-      setDealerHand(dealer_hand);
+      
+      // Process dealer hand
+      const dealerHand = response.data.dealer_hand || [];
+      setDealerHand(dealerHand);
+      
       setGameState('playing');
       setError('');
       setHandResults({});
       
-      // Check if player can double/split
-      if (player_hands.main && player_hands.main.length >= 2) {
+      // Check if player can double/split based on the received hands
+      const mainHand = processedPlayerHands.main || [];
+      if (mainHand && mainHand.length >= 2) {
         setCanDouble(true);
-        const card1 = player_hands.main[0];
-        const card2 = player_hands.main[1];
+        
+        const card1 = mainHand[0];
+        const card2 = mainHand[1];
+        
         const canSplitValue = card1 && card2 && card1.rank === card2.rank;
         setCanSplit(canSplitValue);
       }
@@ -117,58 +188,74 @@ const BlackjackGame = () => {
         btn.disabled = true;
       });
 
-      // Make API request for the action
+      // Ensure we have a valid user ID
+      if (!user || !user.id) {
+        setError('Please log in to play');
+        navigate('/login');
+        return;
+      }
+      
+      // Get the token from session storage
+      const token = sessionStorage.getItem('token');
+      
+      // Make API request for the action with explicit authentication header
       const response = await axios.post(`${API_BASE_URL}/blackjack/action/`, {
         user_id: user.id,
         action: action,
         hand: currentHand
+      }, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
       });
 
-      // CRITICAL: Log the COMPLETE raw API response
-      console.log(`FULL ${action} API RESPONSE:`, JSON.stringify(response.data, null, 2));
+      // Log the API response for debugging
+      console.log(`${action} API RESPONSE:`, response.data);
       
-      // IMPORTANT: The API now should include player_hands even in bust/complete responses
-      // If it doesn't (backward compatibility), we can fetch it using the last_action endpoint
+      // Initialize processedPlayerHands here so it's available in the whole function scope
+      let processedPlayerHands = {...playerHands}; // Start with current hands as fallback
       
-      // Check if we need to fetch player_hands separately (if the response doesn't include it)
-      if (!response.data.player_hands && response.data.results) {
-        try {
-          // Attempt to fetch player_hands using the last_action endpoint
-          const lastActionResponse = await axios.post(`${API_BASE_URL}/blackjack/last_action/`, {
-            user_id: user.id
-          });
-          
-          if (lastActionResponse.data && lastActionResponse.data.player_hands) {
-            // Add player_hands to our response
-            response.data.player_hands = lastActionResponse.data.player_hands;
-            console.log("Retrieved player_hands from last_action endpoint:", 
-              JSON.stringify(response.data.player_hands, null, 2));
-          }
-        } catch (error) {
-          console.log("Error fetching player_hands from last_action:", error);
-        }
-      }
-      
-      // Always update player hands from response if available
+      // IMPORTANT: Process player_hands data
       if (response.data && response.data.player_hands) {
-        // Save the latest player hands
-        setPlayerHands(response.data.player_hands);
+        // Process player hands data - convert nested arrays if needed
+        processedPlayerHands = {};
         
-        // Also update our action history
+        Object.entries(response.data.player_hands).forEach(([handKey, handCards]) => {
+          // Check if we have an array of arrays (format inconsistency)
+          if (Array.isArray(handCards) && handCards.length > 0) {
+            if (Array.isArray(handCards[0]) && handCards.every(item => Array.isArray(item))) {
+              // We got a nested array structure, flatten one level
+              processedPlayerHands[handKey] = handCards.flat();
+            } else {
+              // Regular array of cards, keep as is
+              processedPlayerHands[handKey] = handCards;
+            }
+          } else {
+            // Other formats or empty arrays, keep as is
+            processedPlayerHands[handKey] = handCards;
+          }
+        });
+        
+        // Update the player hands state with the processed data
+        setPlayerHands(processedPlayerHands);
+        
+        // Update action history as well
         setActionHistory(prev => ({
           ...prev,
           [action]: {
             time: new Date().getTime(),
-            playerHands: response.data.player_hands
+            playerHands: processedPlayerHands
           }
         }));
       }
       
+      // Process dealer hand if available
+      if (response.data && response.data.dealer_hand) {
+        setDealerHand(response.data.dealer_hand);
+      }
+      
       // Check if this is a response with results (game complete)
       if (response.data.results) {
-        // Set dealer hand from response data
-        setDealerHand(response.data.dealer_hand);
-        
         // Set the results that came from the API
         setHandResults(response.data.results || {});
         
@@ -177,7 +264,7 @@ const BlackjackGame = () => {
         
         if (isTrueBust) {
           // If player busted, show the busted state first
-          setMessage(`You busted with ${calculateHandValue(response.data.player_hands[currentHand])}!`);
+          setMessage(`You busted with ${calculateHandValue(processedPlayerHands[currentHand] || [])}!`);
           setGameState('busted');
           
           // Wait before showing result
@@ -212,211 +299,143 @@ const BlackjackGame = () => {
       }
       
       // Normal response handling (action taken but game continues)
-      if (response.data && response.data.player_hands) {
+      if (action === 'hit') {
         // For HIT action - special handling
-        if (action === 'hit') {
-          const currentHandCards = response.data.player_hands[currentHand];
-          const handValue = calculateHandValue(currentHandCards);
+        const currentHandCards = processedPlayerHands?.[currentHand] || [];
+        const handValue = calculateHandValue(currentHandCards);
+        
+        // No more double or split after hitting
+        setCanDouble(false);
+        setCanSplit(false);
+        
+        // Check if player busts
+        if (handValue > 21) {
+          // Create a copy of the current player hands to force update
+          const updatedPlayerHands = {...processedPlayerHands};
           
-          // No more double or split after hitting
-          setCanDouble(false);
-          setCanSplit(false);
+          // Force the player hands update and explicitly wait for it
+          setPlayerHands(updatedPlayerHands);
           
-          // Check if player busts
-          if (handValue > 21) {
-            // CRITICAL: First, explicitly log the cards being received from API
-            console.log(`DEBUG: Hit caused bust. API returned these cards for ${currentHand}:`, currentHandCards);
-            
-            // Special handling for busts - important to force an update of the cards
-            // Create a copy of the current player hands
-            const updatedPlayerHands = {...response.data.player_hands};
-            
-            // Ensure we're seeing the complete hand with the new card
-            console.log("Complete hand that caused bust:", updatedPlayerHands[currentHand]);
-            
-            // Force the player hands update and explicitly wait for it
-            setPlayerHands(updatedPlayerHands);
-            
-            // Mark the bust in hand results
-            setHandResults(prev => ({
-              ...prev,
-              [currentHand]: "Bust ❌"
-            }));
-            
-            // Set message
-            setMessage(`You busted with ${handValue}!`);
-            
-            // Use a staggered timing approach to ensure all updates are processed
-            setTimeout(() => {
-              // After a brief delay, set the game state to busted
-              setGameState('busted');
+          // Mark the bust in hand results
+          setHandResults(prev => ({
+            ...prev,
+            [currentHand]: "Bust ❌"
+          }));
+          
+          // Set message
+          setMessage(`You busted with ${handValue}!`);
+          
+          // Use a staggered timing approach to ensure all updates are processed
+          setTimeout(() => {
+            if (Object.keys(playerHands).length > 1) {
+              // If multiple hands, move to the next one
+              const allHandKeys = Object.keys(playerHands);
+              const currentIndex = allHandKeys.indexOf(currentHand);
               
-              // Wait longer before proceeding to dealer
-              setTimeout(() => {
-                // We want to clearly see the bust card before moving to dealer phase
+              if (currentIndex < allHandKeys.length - 1) {
+                // Move to next hand
+                setCurrentHand(allHandKeys[currentIndex + 1]);
+                setCanDouble(false);
+                setCanSplit(false);
+              } else {
+                // Process dealer if this was the last hand
                 processDealer();
-              }, 2000);
-            }, 500);
-            
-            return;
-          }
-        }
-        
-        // For STAND action
-        if (action === 'stand') {
-          const handKeys = Object.keys(response.data.player_hands);
-          const currentIndex = handKeys.indexOf(currentHand);
-          
-          if (currentIndex < handKeys.length - 1) {
-            // Move to next hand
-            const nextHand = handKeys[currentIndex + 1];
-            setCurrentHand(nextHand);
-            setCanDouble(true);
-            setCanSplit(false);
-          } else {
-            // All hands played, move to dealer
-            processDealer();
-          }
-        }
-        
-        // For DOUBLE action
-        if (action === 'double') {
-          const currentHandCards = response.data.player_hands[currentHand];
-          const handValue = calculateHandValue(currentHandCards);
-          
-          // Check if player busts on double
-          if (handValue > 21) {
-            // Mark the bust
-            setHandResults(prev => ({
-              ...prev,
-              [currentHand]: "Bust ❌"
-            }));
-            
-            setMessage(`You doubled and busted with ${handValue}!`);
-            setGameState('busted'); // Pause here before moving to dealer
-            setTimeout(() => {
-              processDealer(); // Continue after delay
-            }, 1500); // This ensures React completes DOM rendering with the last drawn card
-            return;
-          }
-          
-          // If not bust, process next hand or dealer
-          const handKeys = Object.keys(response.data.player_hands);
-          const currentIndex = handKeys.indexOf(currentHand);
-          
-          if (currentIndex < handKeys.length - 1) {
-            // Move to next hand
-            const nextHand = handKeys[currentIndex + 1];
-            setCurrentHand(nextHand);
-            setCanDouble(true);
-            setCanSplit(false);
-          } else {
-            // All hands played, move to dealer
-            processDealer();
-          }
-        }
-        
-        // For SPLIT action
-        if (action === 'split') {
-          // After splitting, stay on first hand
-          const firstHandKey = Object.keys(response.data.player_hands)[0];
-          setCurrentHand(firstHandKey);
-          setCanDouble(true);
-          setCanSplit(false);
-          
-          // Update balance
-          if (response.data.new_balance !== undefined) {
-            const newBalance = parseFloat(response.data.new_balance);
-            setCurrentBalance(newBalance);
-            updateBalance(newBalance);
-          }
+              }
+            } else {
+              // Process dealer for a single hand
+              processDealer();
+            }
+          }, 1200);
         }
       }
+      
+      // Re-enable buttons
+      setTimeout(() => {
+        document.querySelectorAll('.game-controls button').forEach(btn => {
+          btn.disabled = false;
+        });
+      }, 300);
+      
     } catch (error) {
       console.error('Action error:', error);
-      setError(error.response?.data?.error || 'Failed to process action');
-    } finally {
-      // Re-enable buttons if still in playing state
-      setTimeout(() => {
-        if (gameState === 'playing') {
-          document.querySelectorAll('.game-controls button').forEach(btn => {
-            btn.disabled = false;
-          });
-        }
-      }, 300);
+      setError('Error during gameplay: ' + (error.response?.data?.error || error.message));
+      
+      // Re-enable buttons on error
+      document.querySelectorAll('.game-controls button').forEach(btn => {
+        btn.disabled = false;
+      });
     }
   };
 
-  // Function to process dealer's turn
+  // Process dealer action to complete the game
   const processDealer = async () => {
     try {
-      // First mark the state as 'dealer' so UI can reflect it
-      setGameState('dealer');
+      console.log("Processing dealer...");
       
-      // Process the dealer's turn
+      // Ensure we have a valid user ID
+      if (!user || !user.id) {
+        setError('Please log in to play');
+        navigate('/login');
+        return;
+      }
+      
+      // Get the token from session storage
+      const token = sessionStorage.getItem('token');
+      
+      // Make API request to process dealer with explicit authentication header
       const response = await axios.post(`${API_BASE_URL}/blackjack/action/`, {
         user_id: user.id,
         action: 'stand',
+        hand: currentHand,
         process_dealer: true
+      }, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
       });
-
-      console.log("DEALER RESPONSE:", JSON.stringify(response.data, null, 2));
-
-      if (response.data) {
-        // If response contains player_hands, update it
-        if (response.data.player_hands) {
-          setPlayerHands(response.data.player_hands);
+      
+      console.log("Dealer processing response:", response.data);
+      
+      // Ensure we have valid dealer hand
+      if (response.data.dealer_hand) {
+        let formattedDealerHand = response.data.dealer_hand;
+        
+        // Handle nested array case
+        if (Array.isArray(formattedDealerHand) && formattedDealerHand.length > 0 && 
+            Array.isArray(formattedDealerHand[0]) && formattedDealerHand.every(item => Array.isArray(item))) {
+          formattedDealerHand = formattedDealerHand.flat();
         }
         
-        // Update dealer's hand
-        if (response.data.dealer_hand) {
-          setDealerHand(response.data.dealer_hand);
-        }
-        
-        // Check if dealer busted
-        const dealerValue = calculateHandValue(response.data.dealer_hand);
-        const dealerBusted = dealerValue > 21;
-        
-        // If the dealer busted, give more time to see the bust card
-        const waitTime = dealerBusted ? 1500 : 1000;
-        
-        // Wait to ensure dealer cards are rendered before showing results
-        setTimeout(() => {
-          // Update game results
-          if (response.data.results) {
-            setHandResults(response.data.results);
-            
-            // Create a summary message from all results
-            const resultMessages = Object.entries(response.data.results)
-              .map(([hand, result]) => `Hand ${hand.replace('main', '1')}: ${result}`)
-              .join(' | ');
-            
-            // Add dealer bust message if applicable
-            const displayMessage = dealerBusted ? 
-              `Dealer busted with ${dealerValue}! ${resultMessages}` : 
-              resultMessages;
-            
-            setMessage(displayMessage);
-          } else {
-            setMessage(dealerBusted ? `Dealer busted with ${dealerValue}!` : "Game over");
-          }
-          
-          // Update balance
-          if (response.data.new_balance !== undefined) {
-            const newBalance = parseFloat(response.data.new_balance);
-            setCurrentBalance(newBalance);
-            updateBalance(newBalance);
-          }
-          
-          // Finally change to result state
-          setGameState('result');
-        }, waitTime);
-      } else {
-        setError('Invalid dealer response data');
+        // Update the dealer's hand
+        setDealerHand(formattedDealerHand);
       }
+      
+      // Set the game state to 'dealer' to show dealer action animation
+      setGameState('dealer');
+      
+      // After a delay to show dealer action, move to results
+      setTimeout(() => {
+        // Set the results if provided
+        if (response.data.results) {
+          setHandResults(response.data.results);
+        }
+        
+        // Change to result state
+        setGameState('result');
+        
+        // Update balance if provided
+        if (response.data.new_balance !== undefined) {
+          const newBalance = parseFloat(response.data.new_balance);
+          setCurrentBalance(newBalance);
+          updateBalance(newBalance);
+        }
+      }, 1500);
     } catch (error) {
-      console.error('Process dealer error:', error);
-      setError(error.response?.data?.error || 'Failed to process dealer turn');
+      console.error('Dealer processing error:', error);
+      setError('Error during dealer processing: ' + (error.response?.data?.error || error.message));
+      
+      // If there's an error with dealer processing, still try to move to result state
+      setGameState('result');
     }
   };
 
@@ -430,13 +449,24 @@ const BlackjackGame = () => {
     let aces = 0;
 
     hand.forEach(card => {
-      if (card.rank === 'A') {
+      // Handle array of arrays case
+      let cardToProcess = card;
+      if (Array.isArray(card)) {
+        cardToProcess = card[0];
+      }
+
+      // Skip if card is 'Hidden' or not an object
+      if (cardToProcess === 'Hidden' || typeof cardToProcess !== 'object') {
+        return;
+      }
+
+      if (cardToProcess.rank === 'A') {
         aces += 1;
         value += 11;
-      } else if (['K', 'Q', 'J'].includes(card.rank)) {
+      } else if (['K', 'Q', 'J'].includes(cardToProcess.rank)) {
         value += 10;
       } else {
-        value += parseInt(card.rank) || 0;
+        value += parseInt(cardToProcess.rank) || 0;
       }
     });
 
@@ -450,10 +480,30 @@ const BlackjackGame = () => {
 
   // Render a card
   const renderCard = (card, index, handArray) => {
-    if (!card) return null;
+    // Debug logging to help diagnose issues
+    if (index === 0) {
+      console.log(`Rendering hand with ${handArray?.length} cards:`, handArray);
+    }
+    
+    if (!card) {
+      console.warn("Attempted to render null/undefined card");
+      return null;
+    }
     
     if (card === 'Hidden') {
       return <div key={index} className="card hidden">?</div>;
+    }
+
+    // Handle different card formats from API
+    // Sometimes we get an array within an array from backend
+    if (Array.isArray(card)) {
+      console.log("Card is an array:", card);
+      card = card[0]; // Take the first card from the array
+    }
+    
+    if (!card || typeof card !== 'object') {
+      console.warn("Invalid card format after processing:", card);
+      return <div key={index} className="card invalid">Invalid</div>;
     }
 
     // Check if this is the last card in a busted hand
@@ -467,8 +517,9 @@ const BlackjackGame = () => {
     // Determine if this is a double card
     const isDoubleCard = card.isDoubleCard;
     
-    // Create class names
-    let cardClasses = `card ${card.suit?.toLowerCase() || ''}`;
+    // Create class names 
+    const cardSuit = card.suit?.toLowerCase() || '';
+    let cardClasses = `card ${cardSuit}`;
     if (isBustCard) {
       cardClasses += ' subtle-bust-card';
     } else if (isDoubleCard) {
@@ -477,7 +528,7 @@ const BlackjackGame = () => {
     
     return (
       <div key={index} className={cardClasses}>
-        <div className="card-value">{card.rank}</div>
+        <div className="card-value">{card.rank || '?'}</div>
         <div className="card-suit">{getSuitSymbol(card.suit)}</div>
         {isBustCard && <div className="subtle-bust-indicator">Bust</div>}
         {isDoubleCard && !isBustCard && <div className="double-indicator">Double</div>}
@@ -516,8 +567,15 @@ const BlackjackGame = () => {
     
     // Try to reset on the backend as well, but don't depend on it
     try {
+      // Get the token from session storage
+      const token = sessionStorage.getItem('token');
+      
       axios.post(`${API_BASE_URL}/blackjack/reset/`, {
         user_id: user.id
+      }, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
       }).catch(err => {
         // Silently handle the error - frontend is already reset
         console.log("Backend reset failed, but frontend is reset:", err);
@@ -549,10 +607,17 @@ const BlackjackGame = () => {
       // Then update the backend if possible
       if (user && user.id) {
         try {
+          // Get the token from session storage
+          const token = sessionStorage.getItem('token');
+          
           // Try to update balance on backend
           await axios.post(`${API_BASE_URL}/users/update-balance/`, {
             user_id: user.id,
             new_balance: newBalance
+          }, {
+            headers: {
+              'Authorization': `Bearer ${token}`
+            }
           });
           
           // Update context

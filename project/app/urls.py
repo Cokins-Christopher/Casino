@@ -1,7 +1,7 @@
 from django.urls import path
 from .views import RegisterUserView, login_user, logout_user, leaderboard, update_spin, last_spin
 from .views import purchase_coins, view_stats, account_info, verify_password
-from .views import start_blackjack, blackjack_action, update_balance, blackjack_last_action
+from .views import start_blackjack, blackjack_action, update_balance, blackjack_last_action, blackjack_reset
 from .views import blackjack_hit, blackjack_stand, game_config, game_statistics
 from .views import admin_user_list, admin_transaction_list, admin_transaction_filter, admin_user_detail
 from .views import admin_modify_user, admin_modify_wallet
@@ -57,6 +57,7 @@ urlpatterns = [
     path('blackjack/stand/<int:game_id>/', blackjack_stand, name='blackjack-stand'),
     path('blackjack/action/', blackjack_action, name='blackjack_action'),
     path('blackjack/last_action/', blackjack_last_action, name='blackjack_last_action'),
+    path('blackjack/reset/', blackjack_reset, name='blackjack_reset'),
     
     # Admin endpoints
     path('admin/users/', admin_user_list, name='admin-users'),
