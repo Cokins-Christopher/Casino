@@ -146,6 +146,7 @@ def process_dealer(request):
         response_data = {
             "message": "Dealer has finished their turn.",
             "dealer_hand": dealer_hand,
+            "player_hands": player_hands,
             "results": results,
             "new_balance": float(user.balance)  # Ensure balance is returned as a float
         }

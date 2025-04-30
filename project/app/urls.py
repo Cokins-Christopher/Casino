@@ -1,7 +1,7 @@
 from django.urls import path
 from .views import RegisterUserView, login_user, leaderboard, update_spin, last_spin  # Import only what's necessary
 from .views import purchase_coins, view_stats, account_info, verify_password
-from .views import start_blackjack, blackjack_action, update_balance
+from .views import start_blackjack, blackjack_action, update_balance, blackjack_last_action
 
 urlpatterns = [
     path('users/', RegisterUserView.as_view(), name='user-register'),
@@ -15,5 +15,6 @@ urlpatterns = [
     path('verify-password/', verify_password, name='verify-password'),
     path('blackjack/start/', start_blackjack, name='start_blackjack'),
     path('blackjack/action/', blackjack_action, name='blackjack_action'),
+    path('blackjack/last_action/', blackjack_last_action, name='blackjack_last_action'),
     path('users/update-balance/', update_balance, name='update_balance'),
 ]

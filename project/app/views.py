@@ -521,3 +521,34 @@ def blackjack_action(request):
     except Exception as e:
         print(f"❌ Unexpected error in blackjack_action: {str(e)}")
         return JsonResponse({"error": f"Unexpected error: {str(e)}"}, status=500)
+
+@csrf_exempt
+def blackjack_last_action(request):
+    """Returns information about the last card played in the user's current blackjack game."""
+    data = json.loads(request.body)
+    user_id = data.get("user_id") or request.session.get("user_id") or request.session.get("_auth_user_id")
+    
+    print(f"🔁 Backend /blackjack_last_action called")
+    print(f"User ID: {user_id}")
+    
+    if not user_id:
+        return JsonResponse({"error": "User not logged in"}, status=401)
+    
+    try:
+        user = CustomUser.objects.get(id=user_id)
+        game = BlackjackGame.objects.filter(user=user).latest("created_at")
+        
+        # Extract the player hands from the current game
+        player_hands = game.player_hands
+        
+        # Return the full player hands data
+        return JsonResponse({
+            "player_hands": player_hands,
+        })
+        
+    except CustomUser.DoesNotExist:
+        return JsonResponse({"error": "User not found"}, status=404)
+    except BlackjackGame.DoesNotExist:
+        return JsonResponse({"error": "No active game found"}, status=400)
+    except Exception as e:
+        return JsonResponse({"error": f"Unexpected error: {str(e)}"}, status=500)

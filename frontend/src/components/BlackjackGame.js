@@ -7,7 +7,7 @@ import '../styles/BlackjackGame.css';
 const BlackjackGame = () => {
   const { user, updateBalance } = useContext(AuthContext);
   const navigate = useNavigate();
-  const [gameState, setGameState] = useState('betting'); // betting, playing, dealer, result
+  const [gameState, setGameState] = useState('betting'); // betting, playing, dealer, busted, result
   const [betAmount, setBetAmount] = useState(1);
   const [playerHands, setPlayerHands] = useState({});
   const [currentHand, setCurrentHand] = useState('main');
@@ -19,6 +19,8 @@ const BlackjackGame = () => {
   const [potentialBalance, setPotentialBalance] = useState(0);
   const [currentBalance, setCurrentBalance] = useState(0);
   const [handResults, setHandResults] = useState({});
+  // Add a new state to track action history
+  const [actionHistory, setActionHistory] = useState({});
 
   const API_BASE_URL = "http://127.0.0.1:8000/api";
 
@@ -107,6 +109,9 @@ const BlackjackGame = () => {
   // Function to handle player actions (hit, stand, double, split)
   const handleAction = async (action) => {
     try {
+      // Save current state before making the API call
+      const currentHandState = {...playerHands};
+      
       // Disable buttons during processing
       document.querySelectorAll('.game-controls button').forEach(btn => {
         btn.disabled = true;
@@ -122,179 +127,61 @@ const BlackjackGame = () => {
       // CRITICAL: Log the COMPLETE raw API response
       console.log(`FULL ${action} API RESPONSE:`, JSON.stringify(response.data, null, 2));
       
-      // IMPORTANT BUG FIX: The API returns different formats based on whether the hit causes a bust
-      // 1. Normal hit: returns player_hands with updated cards
-      // 2. Bust hit: returns dealer_hand and results directly (final state)
+      // IMPORTANT: The API now should include player_hands even in bust/complete responses
+      // If it doesn't (backward compatibility), we can fetch it using the last_action endpoint
       
-      // Check if this looks like a bust response (has results but no player_hands)
-      const isBustResponse = response.data.results && !response.data.player_hands;
-      
-      if (isBustResponse) {
-        console.log("Detected bust response from API - handling special case");
-        
-        // First check if this was a hit action
-        if (action === 'hit' || action === 'double') {
-          /**************************************************************************
-           * IMPORTANT DEVELOPER NOTE:
-           * 
-           * The current API has a limitation: when a hit/double action completes the game
-           * (either by busting or automatically moving to dealer turn), the API response 
-           * only includes the final results (dealer_hand, results) but NOT the updated
-           * player_hands with the final card that was dealt.
-           * 
-           * Ideally, the backend API should be modified to always include:
-           * 1. The complete player_hands in every response
-           * 2. The specific last card that was dealt
-           * 
-           * For now, we have to generate a synthetic card that makes sense based on
-           * the game outcome. This is a workaround until the API can be improved.
-           * 
-           * Proper API fix would be to always include player_hands and last_action in
-           * the response, even when the game is complete.
-           **************************************************************************/
+      // Check if we need to fetch player_hands separately (if the response doesn't include it)
+      if (!response.data.player_hands && response.data.results) {
+        try {
+          // Attempt to fetch player_hands using the last_action endpoint
+          const lastActionResponse = await axios.post(`${API_BASE_URL}/blackjack/last_action/`, {
+            user_id: user.id
+          });
           
-          // Get the current hand from state
-          const currentStateHand = [...playerHands[currentHand]];
-          
-          // CRITICAL: Check if this is actually a bust or just a completed double
-          // Look at the results to see if it's a bust or not
-          const isTrueBust = response.data.results[currentHand] === "Bust ❌";
-          
-          // Check what our current hand value is
-          const currentHandValue = calculateHandValue(currentStateHand);
-          
-          // For display purposes, compute what the final card could realistically be
-          let lastCard;
-          
-          if (isTrueBust) {
-            // Handle true bust case - reconstruct a card that would cause a bust
-            // Minimum value needed to bust
-            const minValueToBust = 22 - currentHandValue;
-            
-            // Choose a card that would cause a bust based on current hand value
-            if (minValueToBust <= 10) {
-              // Any 10-value card would cause a bust
-              lastCard = {
-                rank: ['10', 'J', 'Q', 'K'][Math.floor(Math.random() * 4)],
-                suit: ['♥', '♦', '♣', '♠'][Math.floor(Math.random() * 4)],
-                value: 10,
-                isBustCard: true
-              };
-            } else {
-              // This shouldn't happen in blackjack (would need a value > 10 to bust)
-              // But just in case, use a value that would cause a bust
-              lastCard = {
-                rank: minValueToBust.toString(),
-                suit: ['♥', '♦', '♣', '♠'][Math.floor(Math.random() * 4)],
-                value: minValueToBust,
-                isBustCard: true
-              };
-            }
-            
-            // Create an updated hand with the bust card
-            const updatedHand = [...currentStateHand, lastCard];
-            
-            // Create updated player hands
-            const updatedPlayerHands = {
-              ...playerHands,
-              [currentHand]: updatedHand
-            };
-            
-            console.log("Reconstructed player hand with bust card:", updatedPlayerHands);
-            
-            // Update the player hands
-            setPlayerHands(updatedPlayerHands);
-            
-            // Show a message about busting
-            setMessage(`You busted with a high value!`);
-            
-            // Set game state to busted to pause
-            setGameState('busted');
-          } else {
-            // This is a double that didn't bust
-            // Determine a realistic card based on the final outcome
-            // If the result is a win, create a strong card
-            // If the result is a loss, create a weaker card
-            
-            const isWin = response.data.results[currentHand]?.includes('Win');
-            const cardValues = [];
-            
-            // Choose card values that make sense for the outcome
-            // For wins, prefer high cards, for losses, prefer lower cards
-            if (isWin) {
-              // For wins, create cards that give good hand values (17-21)
-              const neededForGood = Math.max(1, Math.min(10, 21 - currentHandValue));
-              cardValues.push(neededForGood);
-              
-              // If an ace could be 1 or 11 and give a good result, use an ace
-              if (currentHandValue <= 10) {
-                cardValues.push('A');
-              }
-            } else {
-              // For losses, create cards that give mediocre hand values (12-16)
-              const neededForMediocre = Math.max(1, Math.min(10, 16 - currentHandValue));
-              cardValues.push(neededForMediocre);
-            }
-            
-            // Choose a realistic card based on the outcome
-            let cardRank = cardValues[Math.floor(Math.random() * cardValues.length)];
-            if (cardRank === 'A') {
-              lastCard = {
-                rank: 'A',
-                suit: ['♥', '♦', '♣', '♠'][Math.floor(Math.random() * 4)],
-                value: 11,
-                isDoubleCard: true
-              };
-            } else if (typeof cardRank === 'number') {
-              // For number cards
-              if (cardRank === 10) {
-                // 10 value cards can be 10, J, Q, or K
-                lastCard = {
-                  rank: ['10', 'J', 'Q', 'K'][Math.floor(Math.random() * 4)],
-                  suit: ['♥', '♦', '♣', '♠'][Math.floor(Math.random() * 4)],
-                  value: 10,
-                  isDoubleCard: true
-                };
-              } else {
-                lastCard = {
-                  rank: cardRank.toString(),
-                  suit: ['♥', '♦', '♣', '♠'][Math.floor(Math.random() * 4)],
-                  value: cardRank,
-                  isDoubleCard: true
-                };
-              }
-            }
-            
-            // Create updated hand with double card
-            const updatedHand = [...currentStateHand, lastCard];
-            
-            // Create updated player hands
-            const updatedPlayerHands = {
-              ...playerHands,
-              [currentHand]: updatedHand
-            };
-            
-            console.log("Reconstructed player hand with double card:", updatedPlayerHands);
-            
-            // Update player hands with our reconstructed version
-            setPlayerHands(updatedPlayerHands);
-            
-            // Set appropriate message for doubling
-            setMessage(`You doubled your bet and received a card.`);
-            
-            // Skip the busted state as we didn't bust
-            setGameState('dealer');
+          if (lastActionResponse.data && lastActionResponse.data.player_hands) {
+            // Add player_hands to our response
+            response.data.player_hands = lastActionResponse.data.player_hands;
+            console.log("Retrieved player_hands from last_action endpoint:", 
+              JSON.stringify(response.data.player_hands, null, 2));
           }
+        } catch (error) {
+          console.log("Error fetching player_hands from last_action:", error);
+        }
+      }
+      
+      // Always update player hands from response if available
+      if (response.data && response.data.player_hands) {
+        // Save the latest player hands
+        setPlayerHands(response.data.player_hands);
+        
+        // Also update our action history
+        setActionHistory(prev => ({
+          ...prev,
+          [action]: {
+            time: new Date().getTime(),
+            playerHands: response.data.player_hands
+          }
+        }));
+      }
+      
+      // Check if this is a response with results (game complete)
+      if (response.data.results) {
+        // Set dealer hand from response data
+        setDealerHand(response.data.dealer_hand);
+        
+        // Set the results that came from the API
+        setHandResults(response.data.results || {});
+        
+        // Check if a player bust occurred
+        const isTrueBust = response.data.results[currentHand] === "Bust ❌";
+        
+        if (isTrueBust) {
+          // If player busted, show the busted state first
+          setMessage(`You busted with ${calculateHandValue(response.data.player_hands[currentHand])}!`);
+          setGameState('busted');
           
-          // Set dealer hand from response data
-          setDealerHand(response.data.dealer_hand);
-          
-          // Set the results that came from the API
-          setHandResults(response.data.results || {});
-          
-          // Wait before showing final result
+          // Wait before showing result
           setTimeout(() => {
-            // Skip process dealer since we already have the results
             setGameState('result');
             
             // Update balance if provided
@@ -304,23 +191,29 @@ const BlackjackGame = () => {
               updateBalance(newBalance);
             }
           }, 2000);
+        } else {
+          // For normal game completion, set game state to dealer first
+          setGameState('dealer');
           
-          return;
+          // Wait before showing result
+          setTimeout(() => {
+            setGameState('result');
+            
+            // Update balance if provided
+            if (response.data.new_balance !== undefined) {
+              const newBalance = parseFloat(response.data.new_balance);
+              setCurrentBalance(newBalance);
+              updateBalance(newBalance);
+            }
+          }, 1500);
         }
+        
+        return;
       }
       
-      // Normal response handling (non-bust case)
-      // Always update player hands from response
+      // Normal response handling (action taken but game continues)
       if (response.data && response.data.player_hands) {
-        // Log player hands specifically
-        console.log("PLAYER HANDS FROM API:", JSON.stringify(response.data.player_hands, null, 2));
-        console.log("Type of player_hands:", typeof response.data.player_hands);
-        console.log("Is Array?", Array.isArray(response.data.player_hands));
-        
-        // Critical: Update player hands immediately with new card data
-        setPlayerHands(response.data.player_hands);
-        
-        // For HIT action - special handling to ensure bust card is visible
+        // For HIT action - special handling
         if (action === 'hit') {
           const currentHandCards = response.data.player_hands[currentHand];
           const handValue = calculateHandValue(currentHandCards);
@@ -439,27 +332,6 @@ const BlackjackGame = () => {
           }
         }
       }
-      
-      // If we receive direct results (e.g., from double or dealer bust)
-      if (response.data.dealer_hand && response.data.results) {
-        setDealerHand(response.data.dealer_hand);
-        setHandResults(response.data.results);
-        setGameState('result');
-        
-        // Create result message
-        const resultMessages = Object.entries(response.data.results)
-          .map(([hand, result]) => `Hand ${hand.replace('main', '1')}: ${result}`)
-          .join(' | ');
-        
-        setMessage(resultMessages);
-        
-        // Update balance
-        if (response.data.new_balance !== undefined) {
-          const newBalance = parseFloat(response.data.new_balance);
-          setCurrentBalance(newBalance);
-          updateBalance(newBalance);
-        }
-      }
     } catch (error) {
       console.error('Action error:', error);
       setError(error.response?.data?.error || 'Failed to process action');
@@ -488,9 +360,18 @@ const BlackjackGame = () => {
         process_dealer: true
       });
 
-      if (response.data && response.data.dealer_hand) {
-        // Update dealer's hand first and let it render
-        setDealerHand(response.data.dealer_hand);
+      console.log("DEALER RESPONSE:", JSON.stringify(response.data, null, 2));
+
+      if (response.data) {
+        // If response contains player_hands, update it
+        if (response.data.player_hands) {
+          setPlayerHands(response.data.player_hands);
+        }
+        
+        // Update dealer's hand
+        if (response.data.dealer_hand) {
+          setDealerHand(response.data.dealer_hand);
+        }
         
         // Check if dealer busted
         const dealerValue = calculateHandValue(response.data.dealer_hand);
@@ -580,11 +461,13 @@ const BlackjackGame = () => {
     const handValue = calculateHandValue(handArray);
     const isBustedHand = handValue > 21;
     
-    // Determine if this is a bust card
+    // Determine if this is a bust card - either explicitly marked or inferred
     const isBustCard = (isLastCard && isBustedHand) || card.isBustCard;
+    
+    // Determine if this is a double card
     const isDoubleCard = card.isDoubleCard;
     
-    // Create class names - use a subtle highlight for bust cards or a different highlight for double
+    // Create class names
     let cardClasses = `card ${card.suit?.toLowerCase() || ''}`;
     if (isBustCard) {
       cardClasses += ' subtle-bust-card';
@@ -597,7 +480,7 @@ const BlackjackGame = () => {
         <div className="card-value">{card.rank}</div>
         <div className="card-suit">{getSuitSymbol(card.suit)}</div>
         {isBustCard && <div className="subtle-bust-indicator">Bust</div>}
-        {isDoubleCard && <div className="double-indicator">Double</div>}
+        {isDoubleCard && !isBustCard && <div className="double-indicator">Double</div>}
       </div>
     );
   };
