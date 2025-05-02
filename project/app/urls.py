@@ -73,4 +73,5 @@ urlpatterns = [
     path('last-spin/<int:user_id>/', last_spin, name='last-spin'), 
     path('purchase-coins/', purchase_coins, name='purchase-coins'),
     path('view-stats/<int:user_id>/', view_stats, name='view-stats'),
+    path('view-stats/me/', view_stats, kwargs={'user_id': 'me'}, name='view-stats-me'),
 ]

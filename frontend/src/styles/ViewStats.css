@@ -83,3 +83,31 @@
     transform: scale(1.1);
     background-color: #FFC107; /* Slightly different gold */
 }
+
+.update-notification {
+    color: #4CAF50;
+    background-color: #E8F5E9;
+    padding: 8px 12px;
+    border-radius: 4px;
+    margin: 10px 0;
+    font-weight: bold;
+    animation: fadeIn 0.3s ease-in-out;
+}
+
+.stats-footer {
+    margin-top: 20px;
+    padding-top: 10px;
+    border-top: 1px solid #ddd;
+    font-size: 0.8em;
+    color: #666;
+}
+
+.last-updated {
+    text-align: right;
+    font-style: italic;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}

@@ -4,6 +4,16 @@ import { AuthContext } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import '../styles/BlackjackGame.css';
 
+// Create a custom event for stats updates
+export const STATS_UPDATED_EVENT = 'blackjack-stats-updated';
+
+// Helper function to emit stats update event
+export const emitStatsUpdate = () => {
+  const event = new CustomEvent(STATS_UPDATED_EVENT);
+  window.dispatchEvent(event);
+  console.log('Stats update event emitted');
+};
+
 const BlackjackGame = () => {
   const { user, updateBalance } = useContext(AuthContext);
   const navigate = useNavigate();
@@ -26,36 +36,56 @@ const BlackjackGame = () => {
 
   // Set up axios interceptor to include authentication
   useEffect(() => {
+    // Fixing auth flow: Check if token exists before any API calls
     const token = sessionStorage.getItem('token');
-    if (token) {
-      axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-      console.log("Setting auth token:", token);
+    if (!token) {
+      console.error("No authentication token found");
+      setError('Please log in to play');
+      navigate('/login');
+      return;
     }
     
+    // Fixing auth flow: Configure axios once, don't set headers redundantly
+    console.log("Setting up auth interceptors with token:", token);
+    
     // Add a request interceptor to ensure the token is always set
-    axios.interceptors.request.use(
+    const requestInterceptor = axios.interceptors.request.use(
       config => {
-        // Always check for the token before each request
+        // Fixing auth flow: Always check for the token before each request
         const currentToken = sessionStorage.getItem('token');
         if (currentToken) {
           config.headers.Authorization = `Bearer ${currentToken}`;
+          console.log("Request with auth token:", config.url);
+        } else {
+          console.error("No token available for request to:", config.url);
+          // Don't throw error here, let the response handler deal with 401
         }
         return config;
       },
       error => {
+        console.error("Request interceptor error:", error);
         return Promise.reject(error);
       }
     );
     
     // Add a response interceptor to handle authentication errors
-    axios.interceptors.response.use(
+    const responseInterceptor = axios.interceptors.response.use(
       response => {
         return response;
       },
       error => {
+        // Fixing auth flow: Improve error logging before redirecting
+        console.error("Response error:", error);
+        
         // Handle 401 Unauthorized errors
         if (error.response && error.response.status === 401) {
-          console.error("Authentication error:", error.response.data);
+          console.error("Authentication error details:", {
+            status: error.response.status,
+            url: error.config.url,
+            data: error.response.data,
+            headers: error.config.headers
+          });
+          
           // Clear session storage and redirect to login if needed
           if (window.location.pathname !== '/login') {
             setError('Please log in to continue');
@@ -68,6 +98,12 @@ const BlackjackGame = () => {
         return Promise.reject(error);
       }
     );
+    
+    // Cleanup interceptors when component unmounts
+    return () => {
+      axios.interceptors.request.eject(requestInterceptor);
+      axios.interceptors.response.eject(responseInterceptor);
+    };
   }, [navigate]);
 
   // Initialize balance from user context
@@ -85,11 +121,31 @@ const BlackjackGame = () => {
     }
   }, [betAmount, currentBalance]);
 
-  // Function to start a new game
-  const startGame = async () => {
-    if (!user) {
+  // Add a helper function to check token validity
+  // Fixing auth flow: Centralized token checking function
+  const verifyAuthBeforeAction = () => {
+    const token = sessionStorage.getItem('token');
+    if (!token) {
+      console.error("No authentication token found");
       setError('Please log in to play');
       navigate('/login');
+      return false;
+    }
+    
+    if (!user) {
+      console.error("No user found in context");
+      setError('Please log in to play');
+      navigate('/login');
+      return false;
+    }
+    
+    return true;
+  };
+
+  // Function to start a new game
+  const startGame = async () => {
+    // Fixing auth flow: Use centralized token checking
+    if (!verifyAuthBeforeAction()) {
       return;
     }
 
@@ -104,16 +160,10 @@ const BlackjackGame = () => {
     }
 
     try {
-      // Get the token from session storage
-      const token = sessionStorage.getItem('token');
-      
+      // Fixing auth flow: No need to explicitly set token in the request header
+      // since it's handled by the interceptor
       const response = await axios.post(`${API_BASE_URL}/blackjack/start/`, {
-        user_id: user.id,
         bets: { main: betAmount }
-      }, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
       });
 
       console.log("Game start response:", response.data);
@@ -160,8 +210,33 @@ const BlackjackGame = () => {
         const card1 = mainHand[0];
         const card2 = mainHand[1];
         
-        const canSplitValue = card1 && card2 && card1.rank === card2.rank;
+        // Improved card rank comparison to handle different card formats
+        const getCardRank = (card) => {
+          if (!card) return null;
+          
+          if (typeof card === 'object' && card.rank) {
+            return card.rank;
+          } else if (typeof card === 'string') {
+            // Handle string format (e.g., 'AH', '10S')
+            if (card.startsWith('10')) {
+              return '10';
+            } else {
+              return card[0]; // First character is rank
+            }
+          }
+          return null;
+        };
+        
+        const rank1 = getCardRank(card1);
+        const rank2 = getCardRank(card2);
+        console.log(`Checking if can split: Card1 rank=${rank1}, Card2 rank=${rank2}`);
+        
+        const canSplitValue = rank1 && rank2 && rank1 === rank2;
         setCanSplit(canSplitValue);
+        
+        if (canSplitValue) {
+          console.log("Cards have same rank - enabling split button");
+        }
       }
       
       // Update balance
@@ -169,16 +244,22 @@ const BlackjackGame = () => {
       setCurrentBalance(newBalance);
       updateBalance(newBalance);
     } catch (error) {
+      // Fixing auth flow: Improved error logging
       console.error('Start game error:', error);
-      setError(error.response?.data?.error || 'Failed to start game');
-      if (error.response?.status === 401) {
-        navigate('/login');
-      }
+      const errorMessage = error.response?.data?.error || 'Failed to start game';
+      setError(errorMessage);
+      
+      // Don't navigate here, let the response interceptor handle authentication issues
     }
   };
 
   // Function to handle player actions (hit, stand, double, split)
   const handleAction = async (action) => {
+    // Fixing auth flow: Use centralized token checking
+    if (!verifyAuthBeforeAction()) {
+      return;
+    }
+    
     try {
       // Save current state before making the API call
       const currentHandState = {...playerHands};
@@ -187,27 +268,21 @@ const BlackjackGame = () => {
       document.querySelectorAll('.game-controls button').forEach(btn => {
         btn.disabled = true;
       });
-
-      // Ensure we have a valid user ID
-      if (!user || !user.id) {
-        setError('Please log in to play');
-        navigate('/login');
-        return;
-      }
       
-      // Get the token from session storage
-      const token = sessionStorage.getItem('token');
-      
-      // Make API request for the action with explicit authentication header
+      // Fixing auth flow: No need to explicitly set token in the request header
+      // since it's handled by the interceptor
       const response = await axios.post(`${API_BASE_URL}/blackjack/action/`, {
-        user_id: user.id,
         action: action,
         hand: currentHand
-      }, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
       });
+
+      // Special debug for double action
+      if (action === 'double') {
+        console.log("Double action initiated:");
+        console.log("Current hand:", currentHand);
+        console.log("Current hand cards:", playerHands[currentHand]);
+        console.log("Current balance:", currentBalance);
+      }
 
       // Log the API response for debugging
       console.log(`${action} API RESPONSE:`, response.data);
@@ -276,6 +351,9 @@ const BlackjackGame = () => {
               const newBalance = parseFloat(response.data.new_balance);
               setCurrentBalance(newBalance);
               updateBalance(newBalance);
+              
+              // Notify that stats have been updated
+              emitStatsUpdate();
             }
           }, 2000);
         } else {
@@ -291,6 +369,9 @@ const BlackjackGame = () => {
               const newBalance = parseFloat(response.data.new_balance);
               setCurrentBalance(newBalance);
               updateBalance(newBalance);
+              
+              // Notify that stats have been updated
+              emitStatsUpdate();
             }
           }, 1500);
         }
@@ -349,6 +430,96 @@ const BlackjackGame = () => {
         }
       }
       
+      // Process split action specifically
+      if (action === 'split') {
+        console.log("Split action response:", response.data);
+        
+        // After splitting, we should have at least one more hand
+        if (processedPlayerHands && Object.keys(processedPlayerHands).length > 1) {
+          console.log("Split successful, now have multiple hands");
+          
+          // Move to the first hand in the list (which should be the current hand)
+          const allHandKeys = Object.keys(processedPlayerHands);
+          
+          // Ensure we're playing the first hand in the sequence
+          setCurrentHand(allHandKeys[0]);
+          
+          // Check if the first hand can be split again or doubled
+          const firstHand = processedPlayerHands[allHandKeys[0]];
+          if (firstHand && firstHand.length === 2) {
+            // Can double the first hand
+            setCanDouble(true);
+            
+            // Check if can split again
+            const getCardRank = (card) => {
+              if (!card) return null;
+              if (typeof card === 'object' && card.rank) {
+                return card.rank;
+              } else if (typeof card === 'string') {
+                return card.startsWith('10') ? '10' : card[0];
+              }
+              return null;
+            };
+            
+            const firstHandCard1 = firstHand[0];
+            const firstHandCard2 = firstHand[1];
+            const rank1 = getCardRank(firstHandCard1);
+            const rank2 = getCardRank(firstHandCard2);
+            
+            // Update canSplit based on the new first hand
+            setCanSplit(rank1 && rank2 && rank1 === rank2);
+          } else {
+            // More than 2 cards, cannot double or split
+            setCanDouble(false);
+            setCanSplit(false);
+          }
+        }
+      }
+      
+      // Process double action specifically
+      if (action === 'double') {
+        console.log("Double action response:", response.data);
+        
+        // After doubling, player should have 3 cards and can no longer double or split
+        setCanDouble(false);
+        setCanSplit(false);
+        
+        // For the current hand, we want to mark the last card as a "double card" for UI purposes
+        if (processedPlayerHands && processedPlayerHands[currentHand]) {
+          const currentHandCards = processedPlayerHands[currentHand];
+          if (Array.isArray(currentHandCards) && currentHandCards.length >= 3) {
+            // Get the last card and mark it as a double card for rendering
+            const lastCardIndex = currentHandCards.length - 1;
+            const lastCard = currentHandCards[lastCardIndex];
+            
+            // Handle case where the last card might be an object or array
+            if (typeof lastCard === 'object' && !Array.isArray(lastCard)) {
+              // Mark the card directly
+              lastCard.isDoubleCard = true;
+              currentHandCards[lastCardIndex] = lastCard;
+              console.log("Marked double card:", lastCard);
+            }
+          }
+          
+          // Update the player hands state to reflect the change
+          setPlayerHands({...processedPlayerHands});
+          
+          // Since double ends the player's turn for this hand, check if this is the last hand
+          const allHandKeys = Object.keys(processedPlayerHands);
+          const currentIndex = allHandKeys.indexOf(currentHand);
+          
+          if (currentIndex < allHandKeys.length - 1) {
+            // Move to next hand
+            setCurrentHand(allHandKeys[currentIndex + 1]);
+          } else {
+            // This was the last hand, process dealer automatically after a brief delay
+            setTimeout(() => {
+              processDealer();
+            }, 800);
+          }
+        }
+      }
+      
       // Re-enable buttons
       setTimeout(() => {
         document.querySelectorAll('.game-controls button').forEach(btn => {
@@ -357,41 +528,36 @@ const BlackjackGame = () => {
       }, 300);
       
     } catch (error) {
+      // Fixing auth flow: Better error handling
       console.error('Action error:', error);
-      setError('Error during gameplay: ' + (error.response?.data?.error || error.message));
+      const errorMessage = error.response?.data?.error || 'Error during gameplay';
+      setError(errorMessage);
       
       // Re-enable buttons on error
       document.querySelectorAll('.game-controls button').forEach(btn => {
         btn.disabled = false;
       });
+      
+      // Don't navigate here, let the response interceptor handle authentication issues
     }
   };
 
   // Process dealer action to complete the game
   const processDealer = async () => {
+    // Fixing auth flow: Use centralized token checking
+    if (!verifyAuthBeforeAction()) {
+      return;
+    }
+    
     try {
       console.log("Processing dealer...");
       
-      // Ensure we have a valid user ID
-      if (!user || !user.id) {
-        setError('Please log in to play');
-        navigate('/login');
-        return;
-      }
-      
-      // Get the token from session storage
-      const token = sessionStorage.getItem('token');
-      
-      // Make API request to process dealer with explicit authentication header
+      // Fixing auth flow: No need to explicitly set token in the request header
+      // since it's handled by the interceptor
       const response = await axios.post(`${API_BASE_URL}/blackjack/action/`, {
-        user_id: user.id,
         action: 'stand',
         hand: currentHand,
         process_dealer: true
-      }, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
       });
       
       console.log("Dealer processing response:", response.data);
@@ -428,14 +594,21 @@ const BlackjackGame = () => {
           const newBalance = parseFloat(response.data.new_balance);
           setCurrentBalance(newBalance);
           updateBalance(newBalance);
+          
+          // Notify that stats have been updated
+          emitStatsUpdate();
         }
       }, 1500);
     } catch (error) {
+      // Fixing auth flow: Better error handling
       console.error('Dealer processing error:', error);
-      setError('Error during dealer processing: ' + (error.response?.data?.error || error.message));
+      const errorMessage = error.response?.data?.error || 'Error during dealer processing';
+      setError(errorMessage);
       
       // If there's an error with dealer processing, still try to move to result state
       setGameState('result');
+      
+      // Don't navigate here, let the response interceptor handle authentication issues
     }
   };
 
@@ -460,19 +633,23 @@ const BlackjackGame = () => {
         return;
       }
 
-      if (cardToProcess.rank === 'A') {
+      // Extract rank and handle aces
+      const rank = cardToProcess.rank;
+      if (rank === 'A') {
         aces += 1;
-        value += 11;
-      } else if (['K', 'Q', 'J'].includes(cardToProcess.rank)) {
+        value += 11; // Initially count aces as 11
+      } else if (['K', 'Q', 'J'].includes(rank)) {
         value += 10;
       } else {
-        value += parseInt(cardToProcess.rank) || 0;
+        value += parseInt(rank) || 0;
       }
     });
 
+    // Adjust aces from 11 to 1 as needed to prevent bust
     while (value > 21 && aces > 0) {
-      value -= 10;
+      value -= 10; // Reduce one ace from 11 to 1 (by subtracting 10)
       aces -= 1;
+      console.log(`Adjusted ace: new value = ${value}`);
     }
 
     return value;
@@ -564,6 +741,9 @@ const BlackjackGame = () => {
     setCanDouble(false);
     setCanSplit(false);
     setHandResults({});
+    
+    // Notify that stats may have been updated
+    emitStatsUpdate();
     
     // Try to reset on the backend as well, but don't depend on it
     try {

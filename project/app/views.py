@@ -223,7 +223,15 @@ def purchase_coins(request):
 @permission_classes([IsAuthenticated])
 def view_stats(request, user_id):
     try:
+        # Handle the 'me' parameter
+        if user_id == 'me':
+            user_id = request.user.id
+            
         user = CustomUser.objects.get(id=user_id)
+        
+        # Check if the requesting user is the same as the requested user
+        if user.id != request.user.id:
+            return JsonResponse({"error": "You can only access your own stats."}, status=403)
 
         # ✅ Calculate total winnings (only "win" transactions)
         total_winnings = Transaction.objects.filter(user=user, transaction_type="win").aggregate(Sum("amount"))["amount__sum"] or 0
@@ -435,7 +443,8 @@ def start_blackjack(request):
 
 @csrf_exempt
 @api_view(['POST'])
-@permission_classes([AllowAny])
+@authentication_classes([TokenAuthentication])
+@permission_classes([IsAuthenticated])
 def blackjack_action(request):
     """Processes a player's action in Blackjack."""
     # Log request headers and data for debugging authentication issues
@@ -443,26 +452,31 @@ def blackjack_action(request):
     
     try:
         data = json.loads(request.body)
-        user_id = data.get("user_id") or request.session.get("user_id") or request.session.get("_auth_user_id")  # Try to get user_id from request body first
+        # Fixing auth flow: Using request.user.id instead of session-based user_id
+        user_id = request.user.id
         action = data.get("action")  # "hit", "stand", "double", "split"
         current_hand = data.get("hand", "main")  # Get the current hand being played
         process_dealer_flag = data.get("process_dealer", False)  # Check if explicit process_dealer flag is set
         
         print(f"Action data: user_id={user_id}, action={action}, hand={current_hand}")
 
-        if not user_id:
-            print("No user_id found in request or session")
-            return JsonResponse({"error": "User not logged in"}, status=401)
-
         try:
-            user = CustomUser.objects.get(id=user_id)
+            user = request.user  # Use the authenticated user directly
             game = BlackjackGame.objects.filter(user=user).latest("created_at")
 
             # If process_dealer flag is explicitly set, go straight to dealer processing
             if process_dealer_flag and action == 'stand':
-                # Store the user_id in the request session for the process_dealer function
-                request.session["current_user_id"] = user.id
-                return process_dealer(request)
+                # FIX: Get the underlying HttpRequest object to avoid type error
+                # The error was: "The `request` argument must be an instance of `django.http.HttpRequest`, not `rest_framework.request.Request`"
+                if hasattr(request, '_request'):
+                    # Use the underlying Django HttpRequest
+                    http_request = request._request
+                else:
+                    # Fallback to the original request (shouldn't happen)
+                    http_request = request
+                
+                # Fixing auth flow: No need to store user_id in session
+                return process_dealer(http_request)
 
             deck = game.deck
             player_hands = game.player_hands
@@ -482,15 +496,94 @@ def blackjack_action(request):
             if action == "hit":
                 # Add a card to the current hand
                 new_card = deck.pop()
-                player_hands[current_hand].append(new_card)
+                
+                # Fix: Safely handle potential nested array structure
+                player_hands_data = game.player_hands[current_hand]
+                print(f"DEBUG: Player hand structure for hit: {player_hands_data}")
+
+                # FIX: Ensure new card is properly appended to existing cards, not replacing them
+                # This fixes issue where new card replaces existing cards instead of being added
+                if isinstance(player_hands_data, list):
+                    # Check if we have a nested structure
+                    if player_hands_data and isinstance(player_hands_data[0], list):
+                        # We have a nested array - add card to first subhand
+                        player_hand = player_hands_data[0]
+                        # Ensure the card is appended to the existing hand
+                        print(f"Adding card {new_card} to nested hand {player_hand}")
+                        player_hand.append(new_card)
+                        # Update the nested structure without replacing the entire hand
+                        game.player_hands[current_hand][0] = player_hand
+                    else:
+                        # Direct array structure - append to existing hand
+                        print(f"Adding card {new_card} to direct hand {player_hands_data}")
+                        game.player_hands[current_hand].append(new_card)
+                else:
+                    # Unexpected format - create a new hand array with the new card
+                    print(f"WARNING: Unexpected player_hand format in hit: {type(player_hands_data)}")
+                    game.player_hands[current_hand] = [new_card]
 
             elif action == "stand":
                 # Stand on current hand, move to next or dealer
-                pass  # No changes to hands needed, frontend will handle moving to next hand
+                # FIX: Properly handle stand action by triggering dealer processing
+                # This fixes issue where dealer's turn doesn't start when player clicks "Stand"
+                
+                # Check if this is the last hand or only a single hand
+                all_hands = list(player_hands.keys())
+                current_index = all_hands.index(current_hand) if current_hand in all_hands else 0
+                is_last_hand = current_index == len(all_hands) - 1
+                
+                print(f"Stand action: Current hand {current_hand}, Is last hand: {is_last_hand}")
+                
+                if is_last_hand:
+                    # Update game state first
+                    game.deck = deck
+                    game.player_hands = player_hands
+                    game.bets = bets
+                    game.save()
+                    
+                    # Process dealer since this is the last or only hand
+                    print("Processing dealer after stand on last hand")
+                    
+                    # FIX: Get the underlying HttpRequest object to avoid type error
+                    # The error was: "The `request` argument must be an instance of `django.http.HttpRequest`, not `rest_framework.request.Request`"
+                    if hasattr(request, '_request'):
+                        # Use the underlying Django HttpRequest
+                        http_request = request._request
+                    else:
+                        # Fallback to the original request (shouldn't happen)
+                        http_request = request
+                        
+                    return process_dealer(http_request)
+                else:
+                    # Not the last hand, let frontend move to next hand
+                    pass
 
             elif action == "double":
+                # Debug logging to help diagnose issues
+                print(f"DEBUG: Double requested for hand: {current_hand}")
+                print(f"DEBUG: Hand structure: {current_hand_cards}")
+                print(f"DEBUG: Hand length: {len(current_hand_cards)}")
+                
+                # FIX: Extract and flatten cards to handle different hand structures
+                flattened_cards = []
+                if len(current_hand_cards) == 2:
+                    # Direct structure - two cards
+                    flattened_cards = current_hand_cards
+                elif len(current_hand_cards) == 1 and isinstance(current_hand_cards[0], list) and len(current_hand_cards[0]) == 2:
+                    # Nested structure - [[card1, card2]]
+                    flattened_cards = current_hand_cards[0]
+                elif isinstance(current_hand_cards, list) and any(isinstance(item, list) for item in current_hand_cards):
+                    # Complex nested structure - extract all cards
+                    for item in current_hand_cards:
+                        if isinstance(item, list):
+                            flattened_cards.extend(item)
+                        else:
+                            flattened_cards.append(item)
+                
+                print(f"DEBUG: Flattened cards for double: {flattened_cards}")
+                
                 # Check if we can double (only with 2 cards)
-                if len(current_hand_cards) != 2:
+                if len(flattened_cards) != 2:
                     return JsonResponse({"error": "Can only double on initial two cards."}, status=400)
                     
                 # Check if player has enough balance
@@ -502,7 +595,21 @@ def blackjack_action(request):
                 user.save()
                 bets[current_hand] *= 2
                 new_card = deck.pop()
-                player_hands[current_hand].append(new_card)
+                
+                # FIX: Handle different card structures consistently
+                if isinstance(current_hand_cards, list):
+                    # Check if we have a nested structure
+                    if len(current_hand_cards) > 0 and isinstance(current_hand_cards[0], list):
+                        # If nested, add the new card to the existing subarray
+                        player_hands[current_hand][0].append(new_card)
+                    else:
+                        # Direct list structure - append to the main array
+                        player_hands[current_hand].append(new_card)
+                else:
+                    # Unexpected format - create a new hand with the flattened cards plus new card
+                    player_hands[current_hand] = flattened_cards + [new_card]
+                
+                print(f"DEBUG: After double, hand is now: {player_hands[current_hand]}")
                 
                 # If this is the last hand, process dealer immediately
                 is_last_hand = current_hand == list(player_hands.keys())[-1]
@@ -515,14 +622,69 @@ def blackjack_action(request):
                     game.save()
                     
                     # Process dealer
-                    request.session["current_user_id"] = user.id
-                    return process_dealer(request)
+                    # FIX: Get the underlying HttpRequest object to avoid type error
+                    if hasattr(request, '_request'):
+                        # Use the underlying Django HttpRequest
+                        http_request = request._request
+                    else:
+                        # Fallback to the original request
+                        http_request = request
+                        
+                    return process_dealer(http_request)
 
             elif action == "split":
-                # Check if hand has exactly 2 cards of the same rank
-                if (len(current_hand_cards) != 2 or 
-                    current_hand_cards[0]["rank"] != current_hand_cards[1]["rank"]):
-                    return JsonResponse({"error": "Cannot split this hand."}, status=400)
+                # DEBUG: Add verbose logging to debug split issues
+                print(f"DEBUG: Split requested for hand: {current_hand}")
+                print(f"DEBUG: Hand structure: {current_hand_cards}")
+                print(f"DEBUG: Hand length: {len(current_hand_cards)}")
+                
+                # FIX: Extract and flatten cards to handle different hand structures
+                flattened_cards = []
+                if len(current_hand_cards) == 2:
+                    # Direct structure - two cards
+                    flattened_cards = current_hand_cards
+                elif len(current_hand_cards) == 1 and isinstance(current_hand_cards[0], list) and len(current_hand_cards[0]) == 2:
+                    # Nested structure - [[card1, card2]]
+                    flattened_cards = current_hand_cards[0]
+                elif isinstance(current_hand_cards, list) and any(isinstance(item, list) for item in current_hand_cards):
+                    # Complex nested structure - extract all cards
+                    for item in current_hand_cards:
+                        if isinstance(item, list):
+                            flattened_cards.extend(item)
+                        else:
+                            flattened_cards.append(item)
+                
+                print(f"DEBUG: Flattened cards: {flattened_cards}")
+                
+                # Check if we have exactly 2 cards after flattening
+                if len(flattened_cards) == 2:
+                    # FIX: Extract ranks properly regardless of card format (dict or string)
+                    def get_card_rank(card):
+                        if isinstance(card, dict) and "rank" in card:
+                            return card["rank"]
+                        elif isinstance(card, str):
+                            # Handle string card format (e.g., "AH", "10S")
+                            if card.startswith('10'):
+                                return '10'
+                            else:
+                                return card[0]  # First character is the rank
+                        return None
+                    
+                    card1_rank = get_card_rank(flattened_cards[0])
+                    card2_rank = get_card_rank(flattened_cards[1])
+                    print(f"DEBUG: Card ranks: {card1_rank} vs {card2_rank}")
+                    
+                    # Check if both cards have the same rank
+                    if card1_rank is not None and card2_rank is not None and card1_rank == card2_rank:
+                        # Cards match - can split
+                        print(f"DEBUG: Cards have same rank: {card1_rank} - can split")
+                    else:
+                        # Different ranks or couldn't extract ranks - cannot split
+                        return JsonResponse({"error": f"Cannot split this hand - cards have different ranks ({card1_rank} vs {card2_rank})."}, status=400)
+                else:
+                    # Wrong number of cards - cannot split
+                    print(f"DEBUG: Cannot split - found {len(flattened_cards)} cards after flattening, need exactly 2")
+                    return JsonResponse({"error": "Cannot split this hand - need exactly 2 cards."}, status=400)
 
                 # Check if player has enough balance for the additional bet
                 if user.balance < bets[current_hand]:
@@ -540,15 +702,25 @@ def blackjack_action(request):
                     count += 1
                     split_hand_key = f"split_{current_hand}_{count}"
 
-                # Create two new hands with one card each
-                card1 = player_hands[current_hand].pop()
-                card2 = player_hands[current_hand].pop()
+                # FIX: Properly extract the cards for splitting to preserve order
+                # Save a reference to the original hand to avoid race conditions
+                original_hand = flattened_cards.copy()
+                card1 = original_hand[0]  # First card
+                card2 = original_hand[1]  # Second card
+                
+                # Clear the current hand and rebuild both hands
+                player_hands[current_hand] = []
+                player_hands[split_hand_key] = []
                 
                 # Deal a new card to each hand
                 first_new_card = deck.pop()
                 second_new_card = deck.pop()
+                
+                # Create the two new hands with one original card + one new card each
                 player_hands[current_hand] = [card1, first_new_card]
                 player_hands[split_hand_key] = [card2, second_new_card]
+                
+                print(f"DEBUG: Split hands created - Hand 1: {player_hands[current_hand]}, Hand 2: {player_hands[split_hand_key]}")
                 
                 # Add the bet for the new hand
                 bets[split_hand_key] = bets[current_hand]
@@ -562,15 +734,41 @@ def blackjack_action(request):
             # Check if we need to process dealer
             all_busted = True
             for hand in player_hands.values():
-                hand_value = calculate_hand_value(hand)
-                if hand_value <= 21:
+                # Debug log to see the hand structure
+                print(f"Checking hand for bust: {hand}")
+                
+                # Fix: Properly handle nested arrays in player hands
+                # This addresses the "list indices must be integers or slices, not str" error
+                try:
+                    # Check if we have a nested array structure (array of arrays)
+                    if hand and isinstance(hand, list) and isinstance(hand[0], list):
+                        # For nested structure, calculate value for each hand in spot
+                        for subhand in hand:
+                            hand_value = calculate_hand_value(subhand)
+                            if hand_value <= 21:
+                                all_busted = False
+                                break
+                    else:
+                        # Direct array structure
+                        hand_value = calculate_hand_value(hand)
+                        if hand_value <= 21:
+                            all_busted = False
+                except Exception as e:
+                    print(f"Error calculating hand value: {str(e)}")
+                    # Be conservative - if we can't calculate a value, assume not busted
                     all_busted = False
-                    break
             
             if all_busted and action != "stand":
                 # If all hands are busted, proceed to dealer directly
-                request.session["current_user_id"] = user.id
-                dealer_result = process_dealer(request)
+                # FIX: Get the underlying HttpRequest object to avoid type error
+                if hasattr(request, '_request'):
+                    # Use the underlying Django HttpRequest
+                    http_request = request._request
+                else:
+                    # Fallback to the original request (shouldn't happen)
+                    http_request = request
+                    
+                dealer_result = process_dealer(http_request)
                 return dealer_result
             
             return JsonResponse({
@@ -579,9 +777,6 @@ def blackjack_action(request):
                 "new_balance": float(user.balance)  # Include updated balance
             })
 
-        except CustomUser.DoesNotExist:
-            print(f"User with ID {user_id} not found")
-            return JsonResponse({"error": "User not found"}, status=404)
         except BlackjackGame.DoesNotExist:
             print(f"No active game found for user {user_id}")
             return JsonResponse({"error": "No active game found"}, status=400)
@@ -593,16 +788,15 @@ def blackjack_action(request):
         return JsonResponse({"error": error_message}, status=500)
 
 @csrf_exempt
+@api_view(['POST'])
+@authentication_classes([TokenAuthentication])
+@permission_classes([IsAuthenticated])
 def blackjack_last_action(request):
     """Gets the last action of the player's Blackjack game."""
-    data = json.loads(request.body)
-    user_id = data.get("user_id") or request.session.get("user_id") or request.session.get("_auth_user_id")
-    
-    if not user_id:
-        return JsonResponse({"error": "User not logged in"}, status=401)
+    # Fixing auth flow: Using request.user directly
+    user = request.user
     
     try:
-        user = CustomUser.objects.get(id=user_id)
         game = BlackjackGame.objects.filter(user=user).latest("created_at")
         
         return JsonResponse({
@@ -610,8 +804,6 @@ def blackjack_last_action(request):
             "dealer_hand": game.dealer_hand,
             "current_spot": game.current_spot
         })
-    except CustomUser.DoesNotExist:
-        return JsonResponse({"error": "User not found"}, status=404)
     except BlackjackGame.DoesNotExist:
         return JsonResponse({"error": "No game found"}, status=404)
     except Exception as e:
@@ -619,34 +811,25 @@ def blackjack_last_action(request):
 
 @csrf_exempt
 @api_view(['POST'])
-@permission_classes([AllowAny])
+@authentication_classes([TokenAuthentication])
+@permission_classes([IsAuthenticated])
 def blackjack_reset(request):
     """Resets the current Blackjack game for a new one."""
     try:
-        # Get data from request
-        if request.body and request.content_type == 'application/json':
-            data = json.loads(request.body)
-        else:
-            data = request.POST.dict()
-            
-        # Get user ID
-        user_id = data.get("user_id") or request.session.get("user_id") or request.session.get("_auth_user_id")
+        # Fixing auth flow: Using request.user directly
+        user = request.user
         
-        if not user_id:
-            return JsonResponse({"error": "User not logged in"}, status=401)
+        # Find and delete any existing blackjack games for the user
+        BlackjackGame.objects.filter(user=user).delete()
         
-        # Get the user
-        user = CustomUser.objects.get(id=user_id)
-        
-        # No need to actually delete anything, just confirm reset is acknowledged
         return JsonResponse({
-            "message": "Game reset successful",
-            "status": "ready"
+            "message": "Game reset successfully",
+            "balance": float(user.balance)
         })
-    except CustomUser.DoesNotExist:
-        return JsonResponse({"error": "User not found"}, status=404)
     except Exception as e:
-        return JsonResponse({"error": str(e)}, status=500)
+        # Catch any other unexpected errors
+        print(f"❌ Unexpected error in blackjack_reset: {str(e)}")
+        return JsonResponse({"error": f"Unexpected error: {str(e)}"}, status=500)
 
 @csrf_exempt
 @api_view(['POST'])
@@ -683,11 +866,14 @@ def update_balance(request):
 
 @csrf_exempt
 @api_view(['POST'])
-@permission_classes([AllowAny])
+# Fixing auth flow to prevent redirect to /login
+@authentication_classes([TokenAuthentication])
+@permission_classes([IsAuthenticated])
 def blackjack_hit(request, game_id):
     """Handle a hit action in blackjack for a specific game."""
     try:
-        game = BlackjackGame.objects.get(id=game_id)
+        # Fixing auth flow: Ensure this game belongs to the authenticated user
+        game = BlackjackGame.objects.get(id=game_id, user=request.user)
         
         # Get a card from the deck
         new_card = game.deck.pop()
@@ -695,12 +881,30 @@ def blackjack_hit(request, game_id):
         # Add it to the first player hand (simplified)
         current_spot = game.current_spot or list(game.player_hands.keys())[0]
         
-        # Handle the nested array format
-        player_hand = game.player_hands[current_spot][0]
-        player_hand.append(new_card)
-        
-        # Update the player hands in the game object
-        game.player_hands[current_spot][0] = player_hand
+        # Fix: Safely handle potential nested array structure
+        player_hands_data = game.player_hands[current_spot]
+        print(f"DEBUG: Player hand structure for hit: {player_hands_data}")
+
+        # FIX: Ensure new card is properly appended to existing cards, not replacing them
+        # This fixes issue where new card replaces existing cards instead of being added
+        if isinstance(player_hands_data, list):
+            # Check if we have a nested structure
+            if player_hands_data and isinstance(player_hands_data[0], list):
+                # We have a nested array - add card to first subhand
+                player_hand = player_hands_data[0]
+                # Ensure the card is appended to the existing hand
+                print(f"Adding card {new_card} to nested hand {player_hand}")
+                player_hand.append(new_card)
+                # Update the nested structure without replacing the entire hand
+                game.player_hands[current_spot][0] = player_hand
+            else:
+                # Direct array structure - append to existing hand
+                print(f"Adding card {new_card} to direct hand {player_hands_data}")
+                game.player_hands[current_spot].append(new_card)
+        else:
+            # Unexpected format - create a new hand array with the new card
+            print(f"WARNING: Unexpected player_hand format in hit: {type(player_hands_data)}")
+            game.player_hands[current_spot] = [new_card]
         
         # Save updated game
         game.save()
@@ -713,58 +917,147 @@ def blackjack_hit(request, game_id):
             "hand": current_spot
         }, status=status.HTTP_200_OK)
     except BlackjackGame.DoesNotExist:
-        return Response({"error": "Game not found"}, status=status.HTTP_404_NOT_FOUND)
+        return Response({"error": "Game not found or not owned by you"}, status=status.HTTP_404_NOT_FOUND)
     except Exception as e:
         return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 @csrf_exempt
 @api_view(['POST'])
-@permission_classes([AllowAny])
+# Fixing auth flow to prevent redirect to /login
+@authentication_classes([TokenAuthentication])
+@permission_classes([IsAuthenticated])
 def blackjack_stand(request, game_id):
     """Handle a stand action in blackjack for a specific game."""
     try:
-        game = BlackjackGame.objects.get(id=game_id)
+        # Fixing auth flow: Ensure this game belongs to the authenticated user
+        game = BlackjackGame.objects.get(id=game_id, user=request.user)
         
         # Process dealer's hand (simplified)
         dealer_hand = game.dealer_hand
+        deck = game.deck
+        
+        # FIX: Add proper game state transition
+        print(f"Stand action: Processing dealer for game {game_id}")
+        
+        # Calculate initial dealer value
         dealer_value = calculate_hand_value(dealer_hand)
+        print(f"Initial dealer value: {dealer_value}")
         
         # Dealer draws until 17 or higher
         while dealer_value < 17:
-            new_card = game.deck.pop()
+            new_card = deck.pop()
             dealer_hand.append(new_card)
             dealer_value = calculate_hand_value(dealer_hand)
+            print(f"Dealer drew {new_card}, new value: {dealer_value}")
         
+        # Update game with dealer's final hand
         game.dealer_hand = dealer_hand
         game.save()
         
-        try:
-            # Determine result (simplified)
-            player_spot = game.current_spot or list(game.player_hands.keys())[0]
-            player_hand = game.player_hands[player_spot][0]
-            player_value = calculate_hand_value(player_hand)
-            
-            if player_value > 21:
-                result = "BUST"
-            elif dealer_value > 21 or player_value > dealer_value:
-                result = "WIN"
-            elif player_value < dealer_value:
-                result = "LOSE"
-            else:
-                result = "PUSH"
+        # Determine result for all player hands
+        results = {}
+        payouts = 0
+        bets = game.bets
+        player_hands = game.player_hands
         
-            # Return in format expected by the test
+        try:
+            # Process each betting spot
+            for spot, player_hand_data in player_hands.items():
+                # Fix: Safely handle potential nested array structure
+                if isinstance(player_hand_data, list):
+                    # Check if this is a nested array structure
+                    if player_hand_data and isinstance(player_hand_data[0], list):
+                        # Use the first sub-hand in nested structure
+                        player_hand = player_hand_data[0]
+                    else:
+                        # Direct array structure
+                        player_hand = player_hand_data
+                else:
+                    # Unexpected format - create empty hand
+                    print(f"WARNING: Unexpected player_hand format: {type(player_hand_data)}")
+                    player_hand = []
+                
+                player_value = calculate_hand_value(player_hand)
+                print(f"Player hand {spot}: value={player_value}, dealer value={dealer_value}")
+                
+                # Determine outcome
+                if player_value > 21:
+                    results[spot] = "BUST"
+                    # Record loss transaction
+                    Transaction.objects.create(
+                        user=user,
+                        amount=bets.get(spot, 0),
+                        transaction_type="loss",
+                        payment_method="blackjack"
+                    )
+                    # No payout for busted hands
+                elif dealer_value > 21:
+                    results[spot] = "WIN"  # Dealer busts, player wins
+                    win_amount = bets.get(spot, 0) * 2  # Double the bet
+                    payouts += win_amount
+                    # Record win transaction
+                    Transaction.objects.create(
+                        user=user,
+                        amount=win_amount,
+                        transaction_type="win",
+                        payment_method="blackjack"
+                    )
+                    print(f"Spot {spot}: Dealer bust, player wins {win_amount}")
+                elif player_value > dealer_value:
+                    results[spot] = "WIN"  # Player has higher value
+                    win_amount = bets.get(spot, 0) * 2  # Double the bet
+                    payouts += win_amount
+                    # Record win transaction
+                    Transaction.objects.create(
+                        user=user,
+                        amount=win_amount,
+                        transaction_type="win",
+                        payment_method="blackjack"
+                    )
+                    print(f"Spot {spot}: Player has higher value, wins {win_amount}")
+                elif player_value < dealer_value:
+                    results[spot] = "LOSE"  # Dealer has higher value
+                    # Record loss transaction
+                    Transaction.objects.create(
+                        user=user,
+                        amount=bets.get(spot, 0),
+                        transaction_type="loss",
+                        payment_method="blackjack"
+                    )
+                    print(f"Spot {spot}: Dealer has higher value, player loses")
+                else:
+                    results[spot] = "PUSH"  # Tie, bet returned
+                    push_amount = bets.get(spot, 0)
+                    payouts += push_amount  # Return original bet
+                    # Record push as neither win nor loss
+                    print(f"Spot {spot}: Push, bet {push_amount} returned")
+            
+            # Update player balance with payouts
+            user = request.user
+            user.balance += payouts
+            user.save()
+            print(f"Total payouts: {payouts}, new balance: {user.balance}")
+            
+            # Mark game as finished (since we've processed all hands)
+            game_state = "finished"
+            
+            # Return complete game results
             return Response({
                 "dealer_hand": dealer_hand,
-                "result": result,
+                "player_hands": player_hands,
+                "results": results,
+                "state": game_state,
                 "dealer_value": dealer_value,
-                "player_value": player_value
+                "player_values": {spot: calculate_hand_value(hand) for spot, hand in player_hands.items()},
+                "payouts": payouts,
+                "new_balance": float(user.balance)
             }, status=status.HTTP_200_OK)
         except Exception as e:
+            print(f"Error processing game results: {str(e)}")
             raise
             
     except BlackjackGame.DoesNotExist:
-        return Response({"error": "Game not found"}, status=status.HTTP_404_NOT_FOUND)
+        return Response({"error": "Game not found or not owned by you"}, status=status.HTTP_404_NOT_FOUND)
     except Exception as e:
         return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
